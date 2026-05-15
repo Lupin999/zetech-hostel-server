@@ -1,0 +1,2 @@
+[dotenv@17.3.1] injecting env (17) from .env -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
+[2026-05-12T08:34:03.302Z] INFO: Server running on port 5000
