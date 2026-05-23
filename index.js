@@ -56,4 +56,17 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => logger.info(`Server running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+    logger.info(`Server running on port ${PORT}`);
+
+    if (process.env.NODE_ENV === 'production') {
+        const https = require('https');
+        setInterval(() => {
+            https.get(process.env.RENDER_URL + '/health', (res) => {
+                console.log('Keep alive ping sent');
+            }).on('error', (err) => {
+                console.log('Keep alive ping failed');
+            });
+        }, 14 * 60 * 1000);
+    }
+});
