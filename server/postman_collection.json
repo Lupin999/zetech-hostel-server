@@ -1,0 +1,265 @@
+{
+  "info": {
+    "name": "Zetech Hostel API",
+    "description": "Complete API collection for Zetech Hostel Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reg_no\": \"SIT/B/01/001\",\n  \"email\": \"student@zetech.ac.ke\",\n  \"full_name\": \"John Doe\",\n  \"password\": \"Hello123\",\n  \"campus\": \"Main\",\n  \"phone\": \"+254712345678\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student@zetech.ac.ke\",\n  \"password\": \"Hello123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if(json.token) pm.collectionVariables.set('token', json.token);"]
+            }
+          }]
+        },
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/send-otp",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+254712345678\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/verify-otp",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+254712345678\",\n  \"code\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify Token",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/verify",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/auth/profile/info",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"John Updated\",\n  \"course\": \"Software Engineering\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/auth/profile",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Hello123\",\n  \"newPassword\": \"World456\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "item": [
+        {
+          "name": "Get All Rooms",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/rooms",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        },
+        {
+          "name": "Add Room (Admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/rooms",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_number\": \"A101\",\n  \"hostel\": \"Boys\",\n  \"campus\": \"Main\",\n  \"room_type\": \"quad\",\n  \"capacity\": 4,\n  \"price\": 30000\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Room Beds",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/rooms/1/beds",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Get Active Booking",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/bookings/active",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        },
+        {
+          "name": "Get Booking Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/bookings/status",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        },
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/bookings",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_id\": 1,\n  \"bed_id\": 1,\n  \"semester\": \"Jan-Apr 2025\",\n  \"arrival_date\": \"2025-01-15\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Bookings",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/bookings/my",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        },
+        {
+          "name": "Get All Bookings (Admin)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/bookings/all",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "STK Push",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/payments/stk-push",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"254712345678\",\n  \"booking_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Payments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/payments/my",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notices",
+      "item": [
+        {
+          "name": "Get Notices",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/notices",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/notifications",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API Status",
+      "item": [
+        {
+          "name": "Check Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/status"
+          }
+        },
+        {
+          "name": "Get API Docs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/docs"
+          }
+        }
+      ]
+    }
+  ]
+}
