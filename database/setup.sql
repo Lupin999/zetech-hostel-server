@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     booking_id INT NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
-    payment_method ENUM('mpesa', 'cash') NOT NULL,
+    payment_method ENUM('mpesa') NOT NULL,
     mpesa_code VARCHAR(100) NULL,
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('pending', 'confirmed') DEFAULT 'pending',

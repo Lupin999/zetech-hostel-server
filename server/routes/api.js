@@ -182,7 +182,7 @@ router.get('/docs', (req, res) => {
                 'POST /api/payments': {
                     description: 'Submit manual payment record',
                     auth: 'required',
-                    body: { booking_id: 'number', amount: 'number (min 12000)', payment_method: 'mpesa|cash', mpesa_code: 'string (optional)' },
+                    body: { booking_id: 'number', amount: 'number (min 12000)', payment_method: 'mpesa', mpesa_code: 'required M-Pesa transaction code' },
                     response: { message: 'Payment submitted' }
                 },
                 'GET /api/payments/my': {
@@ -240,7 +240,7 @@ router.get('/docs', (req, res) => {
                 }
             },
             operations: {
-                description: 'Resident lifecycle, maintenance, visitor, finance reporting, refund, student administration, and audit workflows',
+                description: 'Resident lifecycle, maintenance, visitor, finance reporting, student administration, and audit workflows',
                 basePath: '/api/operations',
                 endpoints: [
                     'GET /students (admin)', 'PATCH /students/:id/role (admin)',
@@ -249,8 +249,6 @@ router.get('/docs', (req, res) => {
                     'GET|POST /requests (student scoped)', 'PATCH /requests/:id (admin/warden)',
                     'GET|POST /visitors (student scoped)', 'PATCH /visitors/:id/status (admin/warden)',
                     'GET|POST /inspections (admin/warden)', 'PATCH /rooms/:id/status (admin/warden)',
-                    'GET|POST /refunds (student scoped)', 'PATCH /refunds/:id/review (admin/accounts)',
-                    'PATCH /refunds/:id/process (admin/accounts)',
                     'GET /payments/:id/receipt (owner or staff)', 'GET /balances (owner or staff)',
                     'GET /reports (admin/accounts)', 'GET /audit (admin)',
                 ]

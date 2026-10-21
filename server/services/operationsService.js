@@ -162,37 +162,6 @@ const updateVisitor = async (actorId, id, status) => {
     return { message: 'Visitor status updated' };
 };
 
-const createRefund = async (userId, input) => {
-    const result = await model.createRefundRequest({
-        paymentId: input.payment_id,
-        userId,
-        amount: input.amount,
-        reason: input.reason.trim(),
-    });
-    if (result.error) return result;
-    return { id: result.insertId, message: 'Refund request submitted for review' };
-};
-
-const listRefunds = async (user) => {
-    const [rows] = await model.listRefunds(financeRoles.includes(user.role) ? null : user.id);
-    return rows;
-};
-
-const reviewRefund = async (actorId, id, status) => {
-    if (!['approved', 'rejected'].includes(status)) return { error: 'Review status must be approved or rejected', status: 400 };
-    const [result] = await model.reviewRefund(id, status, actorId);
-    if (!result.affectedRows) return { error: 'Pending refund request not found', status: 404 };
-    await audit(actorId, `refund.${status}`, 'refund_request', id);
-    return { message: `Refund ${status}` };
-};
-
-const processRefund = async (actorId, id, reference) => {
-    const [result] = await model.processRefund(id, reference.trim());
-    if (!result.affectedRows) return { error: 'Approved refund request not found', status: 404 };
-    await audit(actorId, 'refund.processed', 'refund_request', id, { external_reference: reference.trim() });
-    return { message: 'Refund marked as processed' };
-};
-
 const getPaymentReceipt = async (paymentId, user) => {
     const [rows] = await model.getPaymentReceipt(paymentId, staffRoles.includes(user.role) ? null : user.id);
     return rows[0] || null;
@@ -223,6 +192,6 @@ module.exports = {
     listStudents, setStudentRole, listStays, checkIn, checkOut, updateStayDates, createRequest,
     listRequests, updateRequest, createVisitor, listVisitors, updateVisitor,
     listInspections, createInspection, updateRoomStatus,
-    createRefund, listRefunds, reviewRefund, processRefund, getPaymentReceipt, getBalances,
+    getPaymentReceipt, getBalances,
     getReports, getAuditLogs,
 };

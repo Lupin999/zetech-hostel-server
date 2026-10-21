@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
     Typography, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, Paper, Chip, Box,
-    Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Alert,
+    Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Alert,
     CircularProgress
 } from '@mui/material';
 import { EventBusy } from '@mui/icons-material';
@@ -87,10 +87,10 @@ export default function MyBookings() {
         } finally { setSubmitting(false); }
     };
 
-    // Manual payment flow (cash or manual mpesa code)
+    // Manual M-Pesa payment using the provider transaction code.
     const handleManualPay = async () => {
         if (!payForm.amount || Number(payForm.amount) < 12000) return toast.error('Minimum payment is KES 12,000 (deposit)');
-        if (payForm.payment_method === 'mpesa' && !payForm.mpesa_code.trim()) return toast.error('Enter M-Pesa code');
+        if (!payForm.mpesa_code.trim()) return toast.error('Enter M-Pesa code');
         setSubmitting(true);
         try {
             await submitPayment({ booking_id: selectedBooking.id, ...payForm });
@@ -198,24 +198,15 @@ export default function MyBookings() {
             <Dialog open={payOpen} onClose={() => setPayOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>Manual Payment — Room {selectedBooking?.room_number}</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                    {payForm.payment_method === 'mpesa' && (
-                        <Alert severity="info">
-                            Pay via M-Pesa: go to Lipa na M-Pesa → Paybill. Business number: <strong>{SCHOOL_PAYBILL}</strong>.
-                            Account number: <strong>{user?.reg_no || 'Your admission/registration number'}</strong>.
-                            Pay the amount below, then enter the M-Pesa confirmation code. Payment remains pending until staff verify it.
-                        </Alert>
-                    )}
+                    <Alert severity="info">
+                        Pay via M-Pesa: go to Lipa na M-Pesa → Paybill. Business number: <strong>{SCHOOL_PAYBILL}</strong>.
+                        Account number: <strong>{user?.reg_no || 'Your admission/registration number'}</strong>.
+                        Pay the amount below, then enter the M-Pesa confirmation code. Payment remains pending until staff verify it.
+                    </Alert>
                     <TextField label="Amount (KES)" type="number" value={payForm.amount}
                         onChange={e => setPayForm({ ...payForm, amount: e.target.value })} />
-                    <TextField label="Payment Method" select value={payForm.payment_method}
-                        onChange={e => setPayForm({ ...payForm, payment_method: e.target.value, mpesa_code: '' })}>
-                        <MenuItem value="mpesa">M-Pesa (manual code)</MenuItem>
-                        <MenuItem value="cash">Cash</MenuItem>
-                    </TextField>
-                    {payForm.payment_method === 'mpesa' && (
-                        <TextField label="M-Pesa Transaction Code" value={payForm.mpesa_code}
-                            onChange={e => setPayForm({ ...payForm, mpesa_code: e.target.value })} />
-                    )}
+                    <TextField label="M-Pesa Transaction Code" value={payForm.mpesa_code}
+                        onChange={e => setPayForm({ ...payForm, mpesa_code: e.target.value })} />
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setPayOpen(false)}>Cancel</Button>

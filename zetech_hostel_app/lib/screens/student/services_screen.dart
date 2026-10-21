@@ -16,15 +16,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
   final _visitorName = TextEditingController();
   final _visitorPhone = TextEditingController();
   final _visitorPurpose = TextEditingController();
-  final _refundAmount = TextEditingController();
-  final _refundReason = TextEditingController();
   List<Map<String, dynamic>> _requests = [];
   List<Map<String, dynamic>> _visitors = [];
   List<Map<String, dynamic>> _payments = [];
-  List<Map<String, dynamic>> _refunds = [];
   String _requestType = 'maintenance';
   String _priority = 'normal';
-  int? _paymentId;
   bool _loading = true;
   bool _submitting = false;
 
@@ -41,8 +37,6 @@ class _ServicesScreenState extends State<ServicesScreen> {
     _visitorName.dispose();
     _visitorPhone.dispose();
     _visitorPurpose.dispose();
-    _refundAmount.dispose();
-    _refundReason.dispose();
     super.dispose();
   }
 
@@ -56,14 +50,12 @@ class _ServicesScreenState extends State<ServicesScreen> {
         ApiClient.get('${ApiConfig.operations}/requests'),
         ApiClient.get('${ApiConfig.operations}/visitors'),
         ApiClient.get(ApiConfig.myPayments),
-        ApiClient.get('${ApiConfig.operations}/refunds'),
       ]);
       if (!mounted) return;
       setState(() {
         _requests = _asList(results[0]);
         _visitors = _asList(results[1]);
         _payments = _asList(results[2]);
-        _refunds = _asList(results[3]);
         _loading = false;
       });
     } catch (error) {
@@ -281,80 +273,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
               child: ListTile(
                 title: Text('KES ${payment['amount']} · ${payment['status']}'),
                 subtitle: Text(
-                  'Room ${payment['room_number']} · ${payment['payment_method']}\n'
+                  'Room ${payment['room_number']} · ${payment['payment_method'] == 'legacy_manual' ? 'Legacy manual (historical)' : 'M-Pesa'}\n'
                   'Reference: ${payment['mpesa_code'] ?? '—'} · ${payment['payment_date']}',
                 ),
-              ),
-            ),
-          ),
-        const Divider(height: 32),
-        const Text(
-          'Request a refund',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Accounts reviews the request. Any approved transfer is processed outside the app.',
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<int>(
-          initialValue: _paymentId,
-          decoration: const InputDecoration(labelText: 'Confirmed payment'),
-          items: _payments
-              .where((payment) => payment['status'] == 'confirmed')
-              .map(
-                (payment) => DropdownMenuItem<int>(
-                  value: payment['id'] as int,
-                  child: Text(
-                    'Payment ${payment['id']} · KES ${payment['amount']}',
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged: (value) => setState(() => _paymentId = value),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _refundAmount,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Amount (KES)'),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _refundReason,
-          minLines: 2,
-          maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Reason'),
-        ),
-        const SizedBox(height: 12),
-        FilledButton(
-          onPressed: _submitting || _paymentId == null
-              ? null
-              : () => _submit(
-                  'refunds',
-                  {
-                    'payment_id': _paymentId,
-                    'amount': double.tryParse(_refundAmount.text.trim()) ?? 0,
-                    'reason': _refundReason.text.trim(),
-                  },
-                  () {
-                    _refundAmount.clear();
-                    _refundReason.clear();
-                    _paymentId = null;
-                  },
-                ),
-          child: const Text('Submit refund request'),
-        ),
-        const Divider(height: 32),
-        const Text('Refund requests'),
-        if (_refunds.isEmpty)
-          _empty('No refund requests')
-        else
-          ..._refunds.map(
-            (refund) => Card(
-              child: ListTile(
-                title: Text('KES ${refund['amount']} · ${refund['status']}'),
-                subtitle: Text(refund['reason']?.toString() ?? ''),
               ),
             ),
           ),

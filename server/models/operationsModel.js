@@ -133,78 +133,6 @@ const updateVisitorStatus = (id, status, actorId) => pool.query(
     [status, actorId, status, status, id]
 );
 
-const createRefundRequest = async ({ paymentId, userId, amount, reason }) => {
-    const connection = await pool.getConnection();
-    try {
-        await connection.beginTransaction();
-        const [payments] = await connection.query(
-            `SELECT p.amount, p.status, b.user_id FROM payments p
-             JOIN bookings b ON b.id = p.booking_id WHERE p.id = ? FOR UPDATE`,
-            [paymentId]
-        );
-        if (!payments.length || payments[0].status !== 'confirmed' || Number(payments[0].user_id) !== Number(userId)) {
-            await connection.rollback();
-            return { error: 'Confirmed payment not found', status: 404 };
-        }
-        const [totals] = await connection.query(
-            `SELECT COALESCE(SUM(amount), 0) AS amount FROM refund_requests
-             WHERE payment_id = ? AND status IN ('pending', 'approved', 'processed')`,
-            [paymentId]
-        );
-        const remaining = Number(payments[0].amount) - Number(totals[0].amount);
-        if (amount > remaining) {
-            await connection.rollback();
-            return { error: `Refund amount exceeds the remaining refundable balance (${remaining})`, status: 400 };
-        }
-        const [result] = await connection.query(
-            'INSERT INTO refund_requests (payment_id, requested_by, amount, reason) VALUES (?, ?, ?, ?)',
-            [paymentId, userId, amount, reason]
-        );
-        await connection.commit();
-        return { insertId: result.insertId };
-    } catch (error) {
-        await connection.rollback();
-        throw error;
-    } finally {
-        connection.release();
-    }
-};
-
-const getRefundablePayment = (paymentId, userId) => pool.query(
-    `SELECT p.id, p.amount, p.status, b.user_id FROM payments p JOIN bookings b ON b.id = p.booking_id
-     WHERE p.id = ? AND (? IS NULL OR b.user_id = ?)`,
-    [paymentId, userId || null, userId || null]
-);
-
-const getRefundTotals = (paymentId) => pool.query(
-    `SELECT COALESCE(SUM(amount), 0) AS amount FROM refund_requests
-     WHERE payment_id = ? AND status IN ('pending', 'approved', 'processed')`,
-    [paymentId]
-);
-
-const listRefunds = (userId) => pool.query(
-    `SELECT f.*, p.payment_method, p.mpesa_code, p.payment_date, p.amount AS payment_amount,
-        b.id AS booking_id, u.full_name, u.reg_no, r.room_number
-     FROM refund_requests f JOIN payments p ON p.id = f.payment_id
-     JOIN bookings b ON b.id = p.booking_id JOIN users u ON u.id = b.user_id
-     JOIN rooms r ON r.id = b.room_id
-     WHERE (? IS NULL OR f.requested_by = ?)
-     ORDER BY f.created_at DESC LIMIT 500`,
-    [userId || null, userId || null]
-);
-
-const reviewRefund = (id, status, reviewerId) => pool.query(
-    `UPDATE refund_requests SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP
-     WHERE id = ? AND status = 'pending'`,
-    [status, reviewerId, id]
-);
-
-const processRefund = (id, reference) => pool.query(
-    `UPDATE refund_requests SET status = 'processed', external_reference = ?, processed_at = CURRENT_TIMESTAMP
-     WHERE id = ? AND status = 'approved'`,
-    [reference, id]
-);
-
 const getPaymentReceipt = (paymentId, userId) => pool.query(
     `SELECT p.id, p.amount, p.payment_method, p.mpesa_code, p.payment_date, p.status,
         b.id AS booking_id, b.semester, u.full_name, u.reg_no, r.room_number, r.hostel, r.campus
@@ -278,7 +206,6 @@ const listAuditLogs = () => pool.query(
 module.exports = {
     listStudents, updateRole, listStays, checkIn, checkOut, getStayBed, updateStayDates, updateBedStatus, getStudentRoom,
     createRequest, listRequests, updateRequest, createVisitor, listVisitors,
-    getVisitor, updateVisitorStatus, listInspections, createInspection, updateRoomStatus, createRefundRequest, getRefundablePayment,
-    getRefundTotals, listRefunds, reviewRefund, processRefund, getPaymentReceipt,
+    getVisitor, updateVisitorStatus, listInspections, createInspection, updateRoomStatus, getPaymentReceipt,
     getPaymentReport, getBalances, getOverview, writeAuditLog, listAuditLogs,
 };

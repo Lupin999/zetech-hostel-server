@@ -7,17 +7,19 @@ import {
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import { formatPaymentMethod } from '../utils/helpers';
 
 const tabsByRole = {
-    admin: ['Stays', 'Students', 'Requests', 'Visitors', 'Inspections', 'Finance', 'Reports', 'Audit'],
-    accounts: ['Finance', 'Reports'],
+    admin: ['Stays', 'Students', 'Requests', 'Visitors', 'Inspections', 'Payments', 'Reports', 'Audit'],
+    accounts: ['Payments', 'Reports'],
     warden: ['Stays', 'Requests', 'Visitors', 'Inspections'],
 };
 
 const csvDownload = (name, rows) => {
     if (!rows.length) return toast.error('There is no data to export');
     const quote = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
-    const csv = [Object.keys(rows[0]), ...rows.map(row => Object.values(row))].map(row => row.map(quote).join(',')).join('\r\n');
+    const formatValue = (value) => value && typeof value === 'object' ? JSON.stringify(value) : value;
+    const csv = [Object.keys(rows[0]), ...rows.map(row => Object.values(row).map(formatValue))].map(row => row.map(quote).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
@@ -25,6 +27,45 @@ const csvDownload = (name, rows) => {
     link.click();
     URL.revokeObjectURL(url);
 };
+
+const auditCsvRows = (rows) => rows.map((row) => {
+    let details = row.details;
+    if (typeof details === 'string') {
+        try { details = JSON.parse(details); }
+        catch { details = { summary: details }; }
+    }
+
+    const genericAction = /^(POST|PUT|PATCH|DELETE)\s+(.+)$/i.exec(row.action || '');
+    let action = row.action || '';
+    if (genericAction) {
+        const method = genericAction[1].toUpperCase();
+        const route = genericAction[2].replace(/^\/api\//, '').split('/').filter((part) => !/^\d+$/.test(part));
+        const endpoint = route.join('/');
+        const knownActions = {
+            'bookings/status': 'Booking status updated',
+            'bookings/suspend': 'Booking suspension updated',
+            'payments/confirm': 'Payment confirmed',
+        };
+        const verbs = { POST: 'Created', PUT: 'Updated', PATCH: 'Updated', DELETE: 'Removed' };
+        action = knownActions[endpoint] || `${verbs[method]} ${endpoint.replaceAll('/', ' ').replaceAll('_', ' ')}`;
+    } else {
+        action = action.replaceAll('.', ' ').replaceAll('_', ' ');
+    }
+
+    const changes = details?.changes && typeof details.changes === 'object'
+        ? Object.entries(details.changes).map(([key, value]) => `${key.replaceAll('_', ' ')}: ${value}`).join('; ')
+        : 'No field-level details recorded';
+
+    return {
+        Timestamp: row.created_at,
+        'Staff member': row.actor_name || '',
+        Email: row.actor_email || '',
+        Action: action,
+        'Record type': row.entity_type || '',
+        'Record ID': row.entity_id || '',
+        Details: changes,
+    };
+});
 
 export default function OperationsDashboard() {
     const { user } = useAuth();
@@ -56,11 +97,7 @@ export default function OperationsDashboard() {
                 setRows(inspectionRes.data);
                 setRooms(roomRes.data);
             }
-            if (activeTab === 'Finance') {
-                const [refundRes, paymentRes] = await Promise.all([api.get('/operations/refunds'), api.get('/payments/all')]);
-                setRows(refundRes.data);
-                setFinancePayments(paymentRes.data);
-            }
+            if (activeTab === 'Payments') setFinancePayments((await api.get('/payments/all')).data);
             if (activeTab === 'Audit') setRows((await api.get('/operations/audit')).data);
         } catch (error) { toast.error(error.response?.data?.error || 'Could not load operations data'); }
     };
@@ -73,13 +110,12 @@ export default function OperationsDashboard() {
                 : activeTab === 'Requests' ? api.get('/operations/requests')
                         : activeTab === 'Visitors' ? api.get('/operations/visitors')
                             : activeTab === 'Inspections' ? Promise.all([api.get('/operations/inspections'), api.get('/rooms')])
-                        : activeTab === 'Finance' ? Promise.all([api.get('/operations/refunds'), api.get('/payments/all')])
+                        : activeTab === 'Payments' ? api.get('/payments/all')
                             : api.get('/operations/audit');
         request.then(response => {
             if (!active) return;
-            if (activeTab === 'Finance') {
-                setRows(response[0].data);
-                setFinancePayments(response[1].data);
+            if (activeTab === 'Payments') {
+                setFinancePayments(response.data);
             } else if (activeTab === 'Inspections') {
                 setRows(response[0].data);
                 setRooms(response[1].data);
@@ -150,18 +186,6 @@ export default function OperationsDashboard() {
         catch (error) { toast.error(error.response?.data?.error || 'Could not update visitor'); }
     };
 
-    const reviewRefund = async (row, status) => {
-        try { await api.patch(`/operations/refunds/${row.id}/review`, { status }); await load(); toast.success(`Refund ${status}`); }
-        catch (error) { toast.error(error.response?.data?.error || 'Could not review refund'); }
-    };
-
-    const processRefund = async (row) => {
-        const external_reference = window.prompt('Enter bank or M-Pesa transaction reference:');
-        if (!external_reference?.trim()) return;
-        try { await api.patch(`/operations/refunds/${row.id}/process`, { external_reference }); await load(); toast.success('Refund marked processed'); }
-        catch (error) { toast.error(error.response?.data?.error || 'Could not process refund'); }
-    };
-
     const confirmPayment = async (payment) => {
         try {
             await api.patch(`/payments/${payment.id}/confirm`);
@@ -205,15 +229,11 @@ export default function OperationsDashboard() {
                     {!rows.length && <TableRow><TableCell colSpan={8} align="center">No inspections recorded</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
-        {activeTab === 'Finance' && <>
-            <Alert severity="info" sx={{ mb: 2 }}>Refund approval is a review record; process the transfer through your bank or M-Pesa provider, then mark it processed with its transaction reference.</Alert>
+        {activeTab === 'Payments' && <>
             <Typography variant="h6" sx={{ mb: 1 }}>Payment verification</Typography>
             <TableContainer component={Paper} sx={{ mb: 3 }}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Registration', 'Room', 'Method', 'Reference', 'Amount', 'Status', 'Action'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{financePayments.map(payment => <TableRow key={payment.id}><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.full_name}</TableCell><TableCell>{payment.reg_no}</TableCell><TableCell>{payment.hostel} {payment.room_number}</TableCell><TableCell>{payment.payment_method}</TableCell><TableCell>{payment.mpesa_code || '—'}</TableCell><TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell><TableCell>{payment.status}</TableCell><TableCell>{payment.status === 'pending' && <Button size="small" onClick={() => confirmPayment(payment)}>Confirm</Button>}</TableCell></TableRow>)}
+                <TableBody>{financePayments.map(payment => <TableRow key={payment.id}><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.full_name}</TableCell><TableCell>{payment.reg_no}</TableCell><TableCell>{payment.hostel} {payment.room_number}</TableCell><TableCell>{formatPaymentMethod(payment.payment_method)}</TableCell><TableCell>{payment.mpesa_code || '—'}</TableCell><TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell><TableCell>{payment.status}</TableCell><TableCell>{payment.status === 'pending' && <Button size="small" onClick={() => confirmPayment(payment)}>Confirm</Button>}</TableCell></TableRow>)}
                     {!financePayments.length && <TableRow><TableCell colSpan={9} align="center">No payments found</TableCell></TableRow>}</TableBody></Table></TableContainer>
-            <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Payment', 'Refund', 'Reason', 'Status', 'Action'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.created_at).toLocaleDateString()}</TableCell><TableCell>{row.full_name}<br />{row.reg_no}</TableCell><TableCell>#{row.payment_id} · KES {Number(row.payment_amount).toLocaleString()}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{row.reason}</TableCell><TableCell>{row.status}{row.external_reference ? <><br />Ref: {row.external_reference}</> : ''}</TableCell><TableCell>{row.status === 'pending' && <><Button size="small" onClick={() => reviewRefund(row, 'approved')}>Approve</Button><Button size="small" color="error" onClick={() => reviewRefund(row, 'rejected')}>Reject</Button></>}{row.status === 'approved' && <Button size="small" onClick={() => processRefund(row)}>Mark processed</Button>}</TableCell></TableRow>)}
-                    {!rows.length && <TableRow><TableCell colSpan={7} align="center">No refund requests</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
         {activeTab === 'Reports' && <>
@@ -243,12 +263,12 @@ export default function OperationsDashboard() {
                     <TableBody>{report.balance_rows.map(row => <TableRow key={row.booking_id}><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.hostel} {row.room_number}</TableCell><TableCell>{row.semester}</TableCell><TableCell>KES {Number(row.amount_due).toLocaleString()}</TableCell><TableCell>KES {Number(row.amount_paid).toLocaleString()}</TableCell><TableCell>KES {Number(row.balance).toLocaleString()}</TableCell></TableRow>)}
                         {!report.balance_rows.length && <TableRow><TableCell colSpan={7} align="center">No approved bookings</TableCell></TableRow>}</TableBody></Table></TableContainer>
                 <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Reg No', 'Room', 'Method', 'Reference', 'Amount', 'Status'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                    <TableBody>{reportRows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.payment_date).toLocaleDateString()}</TableCell><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.hostel} {row.room_number}</TableCell><TableCell>{row.payment_method}</TableCell><TableCell>{row.mpesa_code || '—'}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{row.status}</TableCell></TableRow>)}
+                    <TableBody>{reportRows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.payment_date).toLocaleDateString()}</TableCell><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.hostel} {row.room_number}</TableCell><TableCell>{formatPaymentMethod(row.payment_method)}</TableCell><TableCell>{row.mpesa_code || '—'}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{row.status}</TableCell></TableRow>)}
                         {!reportRows.length && <TableRow><TableCell colSpan={8} align="center">No payments for this period</TableCell></TableRow>}</TableBody></Table></TableContainer>
             </>}
         </>}
 
-        {activeTab === 'Audit' && <><Button sx={{ mb: 1 }} onClick={() => csvDownload('hostel-admin-audit.csv', rows)}>Export CSV</Button>
+        {activeTab === 'Audit' && <><Button sx={{ mb: 1 }} onClick={() => csvDownload('hostel-admin-audit.csv', auditCsvRows(rows))}>Export CSV</Button>
             <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['When', 'Staff', 'Action', 'Record', 'Details'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
                 <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.created_at).toLocaleString()}</TableCell><TableCell>{row.actor_name || 'Deleted account'}</TableCell><TableCell>{row.action}</TableCell><TableCell>{row.entity_type} {row.entity_id || ''}</TableCell><TableCell>{typeof row.details === 'string' ? row.details : JSON.stringify(row.details || {})}</TableCell></TableRow>)}
                     {!rows.length && <TableRow><TableCell colSpan={5} align="center">No audit activity recorded yet</TableCell></TableRow>}</TableBody></Table></TableContainer>

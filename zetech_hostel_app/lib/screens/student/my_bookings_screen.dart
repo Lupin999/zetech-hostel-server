@@ -249,7 +249,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       text: (booking.price ?? 30000).toStringAsFixed(0),
     );
     final mpesaCodeController = TextEditingController();
-    String paymentMethod = 'mpesa';
+    const paymentMethod = 'mpesa';
     bool submitting = false;
     final registrationNumber =
         context.read<AuthProvider>().user?.regNo ??
@@ -278,49 +278,31 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: paymentMethod,
-                  decoration: const InputDecoration(
-                    labelText: 'Payment Method',
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),
-                    DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  ],
-                  onChanged: (val) => setSheetState(() {
-                    paymentMethod = val!;
-                  }),
+                  child: Text(
+                    'Pay via M-Pesa: Lipa na M-Pesa → Paybill. Business number: ${ApiConfig.schoolPaybill}. '
+                    'Account number: $registrationNumber. Pay the amount below, then enter the M-Pesa confirmation code. '
+                    'Payment remains pending until staff verify it.',
+                  ),
                 ),
-                if (paymentMethod == 'mpesa') ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Pay via M-Pesa: Lipa na M-Pesa → Paybill. Business number: ${ApiConfig.schoolPaybill}. '
-                      'Account number: $registrationNumber. Pay the amount below, then enter the M-Pesa confirmation code. '
-                      'Payment remains pending until staff verify it.',
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 12),
                 CustomTextField(
                   label: 'Amount',
                   controller: amountController,
                   keyboardType: TextInputType.number,
                 ),
-                if (paymentMethod == 'mpesa') ...[
-                  const SizedBox(height: 12),
-                  CustomTextField(
-                    label: 'M-Pesa Code',
-                    hint: 'e.g. SHK12345XY',
-                    controller: mpesaCodeController,
-                  ),
-                ],
+                const SizedBox(height: 12),
+                CustomTextField(
+                  label: 'M-Pesa Code',
+                  hint: 'e.g. SHK12345XY',
+                  controller: mpesaCodeController,
+                ),
                 const SizedBox(height: 16),
                 CustomButton(
                   label: 'Submit Payment',
@@ -340,8 +322,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                     double.tryParse(amountController.text) ??
                                     30000,
                                 'payment_method': paymentMethod,
-                                if (paymentMethod == 'mpesa')
-                                  'mpesa_code': mpesaCodeController.text.trim(),
+                                'mpesa_code': mpesaCodeController.text.trim(),
                               },
                             );
                             Navigator.pop(ctx);

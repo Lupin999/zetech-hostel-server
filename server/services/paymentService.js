@@ -98,6 +98,10 @@ const handleCallback = async (body) => {
 };
 
 const submitPayment = async (userId, { booking_id, amount, payment_method, mpesa_code }) => {
+    if (payment_method !== 'mpesa') {
+        return { error: 'Payments must be made through M-Pesa', status: 400 };
+    }
+
     const [booking] = await PaymentModel.getApprovedBookingForPayment(booking_id, userId);
     if (!booking.length) return { error: 'No approved booking found', status: 400 };
 
@@ -108,7 +112,7 @@ const submitPayment = async (userId, { booking_id, amount, payment_method, mpesa
         await PaymentModel.deletePendingByBookingId(booking_id);
     }
 
-    if (payment_method === 'mpesa' && !mpesa_code?.trim()) {
+    if (!mpesa_code?.trim()) {
         return { error: 'M-Pesa code is required for M-Pesa payments', status: 400 };
     }
 

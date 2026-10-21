@@ -39,10 +39,10 @@ class AdminPaymentCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: payment.paymentMethod == 'mpesa' ? Colors.green.shade100 : Colors.blue.shade100,
+                  color: payment.paymentMethod == 'legacy_manual' ? Colors.blue.shade100 : Colors.green.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(payment.paymentMethod ?? '', style: const TextStyle(fontSize: 11)),
+                child: Text(payment.paymentMethodLabel, style: const TextStyle(fontSize: 11)),
               ),
               if (payment.mpesaCode != null && payment.mpesaCode!.isNotEmpty) ...[
                 const SizedBox(width: 8),

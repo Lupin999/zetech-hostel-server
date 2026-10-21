@@ -97,21 +97,6 @@ router.patch('/rooms/:id/status', authenticateToken, allowRoles('admin', 'warden
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.updateRoomStatus(req.user.id, req.params.id, req.body.status)));
 
-router.get('/refunds', authenticateToken, run((req) => operationsService.listRefunds(req.user)));
-router.post('/refunds', authenticateToken,
-    body('payment_id').isInt({ min: 1 }), body('amount').isFloat({ gt: 0 }),
-    body('reason').trim().isLength({ min: 5, max: 2000 }),
-    (req, res, next) => { if (handleErrors(req, res)) return; next(); },
-    run((req) => operationsService.createRefund(req.user.id, req.body)));
-router.patch('/refunds/:id/review', authenticateToken, allowRoles('admin', 'accounts'),
-    param('id').custom(validId), body('status').isIn(['approved', 'rejected']),
-    (req, res, next) => { if (handleErrors(req, res)) return; next(); },
-    run((req) => operationsService.reviewRefund(req.user.id, req.params.id, req.body.status)));
-router.patch('/refunds/:id/process', authenticateToken, allowRoles('admin', 'accounts'),
-    param('id').custom(validId), body('external_reference').trim().isLength({ min: 3, max: 100 }),
-    (req, res, next) => { if (handleErrors(req, res)) return; next(); },
-    run((req) => operationsService.processRefund(req.user.id, req.params.id, req.body.external_reference)));
-
 router.get('/payments/:id/receipt', authenticateToken, (req, res, next) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid payment ID' });
     next();

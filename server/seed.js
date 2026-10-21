@@ -4,11 +4,12 @@ const pool = require('./config/db');
 (async () => {
 
     try {
-        console.log('Seeding rooms 1-12 with 4 beds each...\n');
+        console.log('Seeding Boys rooms 1-7 and Girls rooms 1-6 with 4 beds each...\n');
 
-        for (let i = 1; i <= 12; i++) {
-            const roomNum = String(i);
-            const hostel = i <= 6 ? 'Boys' : 'Girls';
+        for (let i = 1; i <= 13; i++) {
+            const hostel = i <= 7 ? 'Boys' : 'Girls';
+            const roomNumber = hostel === 'Boys' ? i : i - 7;
+            const roomNum = String(roomNumber);
             const [existing] = await pool.query('SELECT id FROM rooms WHERE room_number = ? AND hostel = ?', [roomNum, hostel]);
 
             let roomId;
@@ -56,9 +57,9 @@ const pool = require('./config/db');
             }
         }
 
-        console.log('\nDone! 12 rooms (1-12) and 48 beds seeded.');
-        console.log('Rooms 1-6: Boys Hostel');
-        console.log('Rooms 7-12: Girls Hostel');
+        console.log('\nDone! 13 rooms (Boys 1-7, Girls 1-6) and 52 beds seeded.');
+        console.log('Rooms 1-7: Boys Hostel');
+        console.log('Rooms 1-6: Girls Hostel');
         console.log('Each room: 4 beds (B1-B2 lower, B3-B4 upper)');
         console.log('Price: KES 30,000 per room');
         console.log('Booking deadline: April 10, 2026');

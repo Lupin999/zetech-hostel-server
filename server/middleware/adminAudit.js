@@ -4,6 +4,20 @@ const logger = require('../utils/logger');
 
 const staffRoles = ['admin', 'accounts', 'warden'];
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const auditedDetailFields = new Set([
+    'status', 'role', 'suspended', 'room_id', 'bed_id', 'arrival_date', 'departure_date',
+    'room_number', 'room_type', 'capacity', 'price',
+]);
+
+function getAuditedChanges(body = {}) {
+    return Object.fromEntries(
+        Object.entries(body && typeof body === 'object' ? body : {}).filter(([key, value]) =>
+            auditedDetailFields.has(key)
+            && (value === null || ['string', 'number', 'boolean'].includes(typeof value))
+            && String(value ?? '').length <= 200
+        )
+    );
+}
 
 module.exports = (req, res, next) => {
     if (!mutationMethods.has(req.method) || req.path.startsWith('/operations')) return next();
@@ -22,7 +36,7 @@ module.exports = (req, res, next) => {
                 action: `${req.method} ${req.baseUrl}${req.path}`.slice(0, 80),
                 entityType: parts[0] || 'api',
                 entityId,
-                details: { route: req.path },
+                details: { route: req.path, changes: getAuditedChanges(req.body) },
             }).catch((auditError) => logger.error('ADMIN AUDIT WRITE ERROR', { message: auditError.message }));
         });
         next();

@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
+import { formatPaymentMethod } from '../utils/helpers';
 
 const emptyRequest = { request_type: 'maintenance', title: '', description: '', priority: 'normal' };
 
@@ -15,22 +16,19 @@ export default function StudentServices() {
     const [visitors, setVisitors] = useState([]);
     const [payments, setPayments] = useState([]);
     const [balances, setBalances] = useState([]);
-    const [refunds, setRefunds] = useState([]);
     const [requestForm, setRequestForm] = useState(emptyRequest);
     const [visitorForm, setVisitorForm] = useState({ visitor_name: '', visitor_phone: '', purpose: '' });
-    const [refundForm, setRefundForm] = useState({ payment_id: '', amount: '', reason: '' });
     const [receipt, setReceipt] = useState(null);
 
     const refresh = async () => {
         try {
-            const [requestRes, visitorRes, paymentRes, refundRes, balanceRes] = await Promise.all([
+            const [requestRes, visitorRes, paymentRes, balanceRes] = await Promise.all([
                 api.get('/operations/requests'), api.get('/operations/visitors'),
-                api.get('/payments/my'), api.get('/operations/refunds'), api.get('/operations/balances'),
+                api.get('/payments/my'), api.get('/operations/balances'),
             ]);
             setRequests(requestRes.data);
             setVisitors(visitorRes.data);
             setPayments(paymentRes.data);
-            setRefunds(refundRes.data);
             setBalances(balanceRes.data);
         } catch (error) {
             toast.error(error.response?.data?.error || 'Could not load your services');
@@ -41,13 +39,12 @@ export default function StudentServices() {
         let active = true;
         Promise.all([
             api.get('/operations/requests'), api.get('/operations/visitors'),
-            api.get('/payments/my'), api.get('/operations/refunds'), api.get('/operations/balances'),
-        ]).then(([requestRes, visitorRes, paymentRes, refundRes, balanceRes]) => {
+            api.get('/payments/my'), api.get('/operations/balances'),
+        ]).then(([requestRes, visitorRes, paymentRes, balanceRes]) => {
             if (!active) return;
             setRequests(requestRes.data);
             setVisitors(visitorRes.data);
             setPayments(paymentRes.data);
-            setRefunds(refundRes.data);
             setBalances(balanceRes.data);
         }).catch(error => toast.error(error.response?.data?.error || 'Could not load your services'));
         return () => { active = false; };
@@ -73,16 +70,6 @@ export default function StudentServices() {
         } catch (error) { toast.error(error.response?.data?.error || 'Could not register visitor'); }
     };
 
-    const submitRefund = async (event) => {
-        event.preventDefault();
-        try {
-            await api.post('/operations/refunds', { ...refundForm, payment_id: Number(refundForm.payment_id), amount: Number(refundForm.amount) });
-            setRefundForm({ payment_id: '', amount: '', reason: '' });
-            await refresh();
-            toast.success('Refund request submitted');
-        } catch (error) { toast.error(error.response?.data?.error || 'Could not request refund'); }
-    };
-
     const openReceipt = async (paymentId) => {
         try {
             const response = await api.get(`/operations/payments/${paymentId}/receipt`);
@@ -96,7 +83,7 @@ export default function StudentServices() {
             <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
                 <Tab label="Requests" />
                 <Tab label="Visitors" />
-                <Tab label="Payments & refunds" />
+                <Tab label="Payments" />
             </Tabs>
 
             {tab === 0 && <>
@@ -153,26 +140,10 @@ export default function StudentServices() {
                 <Paper sx={{ p: 2, mb: 3 }}>
                     <Typography variant="h6" gutterBottom>Payment history</Typography>
                     <TableContainer><Table size="small"><TableHead><TableRow>{['Date', 'Room', 'Amount', 'Method', 'Status', 'Receipt'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                        <TableBody>{payments.map(row => <TableRow key={row.id}><TableCell>{new Date(row.payment_date).toLocaleDateString()}</TableCell><TableCell>{row.room_number}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{row.payment_method}</TableCell><TableCell>{row.status}</TableCell><TableCell><Button size="small" onClick={() => openReceipt(row.id)}>View</Button></TableCell></TableRow>)}
+                        <TableBody>{payments.map(row => <TableRow key={row.id}><TableCell>{new Date(row.payment_date).toLocaleDateString()}</TableCell><TableCell>{row.room_number}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{formatPaymentMethod(row.payment_method)}</TableCell><TableCell>{row.status}</TableCell><TableCell><Button size="small" onClick={() => openReceipt(row.id)}>View</Button></TableCell></TableRow>)}
                             {!payments.length && <TableRow><TableCell colSpan={6} align="center">No payments found</TableCell></TableRow>}</TableBody>
                     </Table></TableContainer>
                 </Paper>
-                <Paper component="form" onSubmit={submitRefund} sx={{ p: 2, mb: 3 }}>
-                    <Typography variant="h6" gutterBottom>Request a refund</Typography>
-                    <Alert severity="warning" sx={{ mb: 2 }}>A request is reviewed by Accounts. Approved refunds are processed outside the app and recorded here with a reference.</Alert>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 2fr' }, gap: 2 }}>
-                        <TextField select label="Confirmed payment" required value={refundForm.payment_id} onChange={e => setRefundForm({ ...refundForm, payment_id: e.target.value })}>
-                            {payments.filter(payment => payment.status === 'confirmed').map(payment => <MenuItem key={payment.id} value={payment.id}>#{payment.id} Room {payment.room_number}: KES {Number(payment.amount).toLocaleString()}</MenuItem>)}
-                        </TextField>
-                        <TextField label="Amount (KES)" type="number" inputProps={{ min: 1 }} required value={refundForm.amount} onChange={e => setRefundForm({ ...refundForm, amount: e.target.value })} />
-                        <TextField label="Reason" required value={refundForm.reason} onChange={e => setRefundForm({ ...refundForm, reason: e.target.value })} />
-                    </Box>
-                    <Button type="submit" variant="contained" sx={{ mt: 2 }} disabled={!payments.some(payment => payment.status === 'confirmed')}>Submit refund request</Button>
-                </Paper>
-                <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Requested', 'Payment', 'Amount', 'Reason', 'Status', 'Reference'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                    <TableBody>{refunds.map(row => <TableRow key={row.id}><TableCell>{new Date(row.created_at).toLocaleDateString()}</TableCell><TableCell>#{row.payment_id}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{row.reason}</TableCell><TableCell>{row.status}</TableCell><TableCell>{row.external_reference || '—'}</TableCell></TableRow>)}
-                        {!refunds.length && <TableRow><TableCell colSpan={6} align="center">No refund requests</TableCell></TableRow>}</TableBody>
-                </Table></TableContainer>
             </>}
 
             <Dialog open={Boolean(receipt)} onClose={() => setReceipt(null)} maxWidth="sm" fullWidth>
@@ -181,7 +152,7 @@ export default function StudentServices() {
                     {[
                         ['Receipt ID', receipt.id], ['Student', receipt.full_name], ['Registration', receipt.reg_no],
                         ['Room', `${receipt.hostel} ${receipt.room_number}`], ['Campus', receipt.campus], ['Semester', receipt.semester],
-                        ['Amount', `KES ${Number(receipt.amount).toLocaleString()}`], ['Method', receipt.payment_method],
+                        ['Amount', `KES ${Number(receipt.amount).toLocaleString()}`], ['Method', formatPaymentMethod(receipt.payment_method)],
                         ['Reference', receipt.mpesa_code || '—'], ['Status', receipt.status],
                         ['Date', new Date(receipt.payment_date).toLocaleString()],
                     ].map(([label, value]) => <Box key={label}><Typography variant="caption" color="text.secondary">{label}</Typography><Typography>{value}</Typography></Box>)}

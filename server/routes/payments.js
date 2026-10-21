@@ -68,7 +68,7 @@ router.post('/callback', async (req, res) => {
 router.post('/', authenticateToken, [
     body('booking_id').isInt().withMessage('Booking ID is required'),
     body('amount').isFloat({ min: 12000 }).withMessage('Minimum payment is KES 12,000 (deposit)'),
-    body('payment_method').isIn(['mpesa', 'cash']).withMessage('Payment method must be mpesa or cash'),
+    body('payment_method').equals('mpesa').withMessage('Payments must be made through M-Pesa'),
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });

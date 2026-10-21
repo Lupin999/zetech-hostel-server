@@ -12,6 +12,9 @@ class Payment {
 
   Payment({this.id, this.bookingId, this.amount, this.paymentMethod, this.mpesaCode, this.status, this.paymentDate, this.roomNumber, this.hostel, this.semester});
 
+  String get paymentMethodLabel =>
+      paymentMethod == 'legacy_manual' ? 'Legacy manual (historical)' : 'M-Pesa';
+
   factory Payment.fromJson(Map<String, dynamic> json) => Payment(
     id: (json['_id'] ?? json['id'])?.toString(),
     bookingId: (json['bookingId'] ?? json['booking_id'])?.toString(),

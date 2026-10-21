@@ -8,6 +8,12 @@ export const timeAgo = (d) => DateTime.fromISO(d).toRelative();
 
 export const formatCurrency = (amount) => `KES ${Number(amount).toLocaleString()}`;
 
+export const formatPaymentMethod = (method) => {
+    if (method === 'legacy_manual') return 'Legacy manual (historical)';
+    if (method === 'mpesa') return 'M-Pesa';
+    return method || '—';
+};
+
 export const getTodayName = () => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     return days[new Date().getDay()];
