@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Card, CardContent, TextField, Button, Typography, Alert, CircularProgress, Box, Select, MenuItem } from '@mui/material';
+import { Card, CardContent, TextField, Button, Typography, Alert, CircularProgress, Box, Select, MenuItem, InputAdornment, IconButton } from '@mui/material';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import AuthLayout from '../components/AuthLayout';
 import { COUNTRY_CODES } from '../utils/constants';
@@ -16,6 +17,8 @@ export default function Register() {
     const [serverError, setServerError] = useState('');
     const [loading, setLoading] = useState(false);
     const [pwFocused, setPwFocused] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [programmes, setProgrammes] = useState([]);
     const { register } = useAuth();
     const navigate = useNavigate();
@@ -138,17 +141,45 @@ export default function Register() {
                                 error={!!errors.phoneNumber} helperText={errors.phoneNumber}
                                 inputProps={{ inputMode: 'numeric' }} />
                         </Box>
-                        <TextField placeholder="Password" type="password" fullWidth sx={{ ...inputSx, mb: pwFocused ? 0.5 : 2.5 }} value={form.password} onChange={update('password')}
+                        <TextField label="Password" placeholder="Enter password" type={showPassword ? 'text' : 'password'} fullWidth required sx={{ ...inputSx, mb: pwFocused ? 0.5 : 2.5 }} value={form.password} onChange={update('password')}
                             onFocus={() => setPwFocused(true)} onBlur={() => setPwFocused(false)}
-                            error={!!errors.password} helperText={errors.password} />
+                            error={!!errors.password} helperText={errors.password}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                            onClick={() => setShowPassword(prev => !prev)}
+                                            onMouseDown={e => e.preventDefault()}
+                                            edge="end"
+                                        >
+                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                ),
+                            }} />
                         {pwFocused && (
                             <Typography variant="caption" sx={{ color: '#888', display: 'block', mb: 2, ml: 0.5 }}>
                                 At least 6 characters; letters and numbers only, with at least 1 capital letter and 1 number. For better security, choose a unique password of 12+ characters.
                             </Typography>
                         )}
-                        <TextField placeholder="Confirm Password" type="password" fullWidth sx={inputSx}
+                        <TextField label="Confirm Password" placeholder="Re-enter password" type={showConfirmPassword ? 'text' : 'password'} fullWidth required sx={inputSx}
                             value={form.confirmPassword} onChange={update('confirmPassword')}
-                            error={!!errors.confirmPassword} helperText={errors.confirmPassword} />
+                            error={!!errors.confirmPassword} helperText={errors.confirmPassword}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                                            onClick={() => setShowConfirmPassword(prev => !prev)}
+                                            onMouseDown={e => e.preventDefault()}
+                                            edge="end"
+                                        >
+                                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                ),
+                            }} />
                         <TextField select label="Gender" fullWidth sx={{
                             ...inputSx,
                             '& .MuiSelect-select': { color: '#1f2937' },
