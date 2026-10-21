@@ -15,6 +15,10 @@ const app = express();
 // reflects the real client IP rather than the load-balancer's 127.0.0.1)
 app.set('trust proxy', 1);
 
+app.get('/health', (req, res) => {
+    res.status(200).send('ok');
+});
+
 // CORS — must be before helmet so preflight OPTIONS requests pass
 // Set ALLOWED_ORIGINS in .env as a comma-separated list of allowed origins.
 // e.g. ALLOWED_ORIGINS=https://zetech-hostel.netlify.app,http://localhost:5173
