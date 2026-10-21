@@ -108,9 +108,15 @@ export default function Login() {
                     <Typography variant="h5" gutterBottom align="center" sx={{ color: '#1a237e' }}>Zetech Hostel</Typography>
                     <Typography variant="body2" gutterBottom align="center" sx={{ color: '#666', mb: 2 }}>Login to your account</Typography>
 
-                    <Tabs value={tab} onChange={(_, v) => { setTab(v); setError(''); setFieldError(''); setOtpSent(false); }} centered sx={{ mb: 3 }}>
-                        <Tab label="Email" />
-                        <Tab label="Phone" />
+                    <Tabs
+                        value={tab}
+                        onChange={(_, v) => { setTab(v); setError(''); setFieldError(''); setOtpSent(false); }}
+                        centered
+                        TabIndicatorProps={{ sx: { transition: 'none' } }}
+                        sx={{ mb: 3, '& .MuiTab-root': { transition: 'none', '&:hover': { backgroundColor: 'transparent' } } }}
+                    >
+                        <Tab label="Email" disableRipple />
+                        <Tab label="Phone" disableRipple />
                     </Tabs>
 
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
