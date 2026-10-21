@@ -56,7 +56,7 @@ export default function Login() {
         if (v) { setError(v.error); setFieldError(v.field); return; }
         setLoading(true);
         try {
-            const user = await login(email, password, { adminOnly: tab === 2 });
+            const user = await login(email, password);
             toast.success('Login successful!');
             navigate(['admin', 'accounts', 'warden'].includes(user?.role) ? '/admin' : '/dashboard', { replace: true });
         } catch (err) {
@@ -111,12 +111,11 @@ export default function Login() {
                     <Tabs value={tab} onChange={(_, v) => { setTab(v); setError(''); setFieldError(''); setOtpSent(false); }} centered sx={{ mb: 3 }}>
                         <Tab label="Email" />
                         <Tab label="Phone" />
-                        <Tab label="Admin" />
                     </Tabs>
 
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-                    {(tab === 0 || tab === 2) && (
+                    {tab === 0 && (
                         <form onSubmit={handleEmailLogin}>
                             <TextField placeholder="Email" type="email" fullWidth required
                                 sx={inputSx} value={email} onChange={e => { setEmail(e.target.value); if (fieldError === 'email') { setError(''); setFieldError(''); } }}
@@ -149,7 +148,7 @@ export default function Login() {
                                 </Typography>
                             )}
                             <Button type="submit" variant="contained" fullWidth size="large" disabled={loading} sx={{ mb: 2, py: 1.5 }}>
-                                {loading ? <CircularProgress size={24} /> : tab === 2 ? 'Admin Login' : 'Login'}
+                                {loading ? <CircularProgress size={24} /> : 'Login'}
                             </Button>
                         </form>
                     )}
