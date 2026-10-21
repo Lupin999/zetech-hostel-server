@@ -1,64 +1,93 @@
 class ApiConfig {
-  // ─── BASE URL ────────────────────────────────────────────────────────────
-  // Priority order (first non-null wins at runtime):
-  //   1. Pass --dart-define=API_BASE_URL=https://... to `flutter run` or your CI build.
-  //   2. Falls back to the compile-time constant below.
-  //
-  // Common values:
-  //   Android emulator  → http://10.0.2.2:5000/api
-  //   iOS simulator     → http://localhost:5000/api
-  //   Phone on same WiFi → http://<YOUR_PC_IP>:5000/api
-  //   Production (Render/Railway) → https://your-app.onrender.com/api
-  static const String baseUrl = String.fromEnvironment(
+  static const String schoolPaybill = '303072';
+
+  // Set API_BASE_URL at build/run time instead of editing source. A physical
+  // phone must use the laptop's current LAN IP; production builds must provide
+  // the deployed HTTPS URL.
+  // Examples:
+  // flutter run --dart-define=API_BASE_URL=http://10.50.57.158:5000/api
+  // flutter build apk --release --dart-define=API_BASE_URL=https://host.example/api
+  static const bool isProduction = bool.fromEnvironment('dart.vm.product');
+  static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:5000/api', // Android emulator default
   );
+  static const String _localDefaultBaseUrl = 'http://10.0.2.2:5000/api';
+
+  static String? get configurationError {
+    final configured = _configuredBaseUrl.trim();
+    if (configured.isEmpty && isProduction) {
+      return 'Set API_BASE_URL to the deployed server URL for production builds.';
+    }
+
+    final value = configured.isNotEmpty ? configured : _localDefaultBaseUrl;
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return 'API_BASE_URL must be a valid http:// or https:// server URL.';
+    }
+    if (isProduction && uri.scheme != 'https') {
+      return 'Production API_BASE_URL must use HTTPS.';
+    }
+    return null;
+  }
+
+  static String get baseUrl {
+    final error = configurationError;
+    if (error != null) throw StateError(error);
+    final configured = _configuredBaseUrl.trim();
+    final value = configured.isNotEmpty ? configured : _localDefaultBaseUrl;
+    return value.replaceFirst(RegExp(r'/+$'), '');
+  }
 
   // ─── AUTH ─────────────────────────────────────────────────────────────────
-  static const String login = '$baseUrl/auth/login';
-  static const String register = '$baseUrl/auth/register';
-  static const String verify = '$baseUrl/auth/verify';
-  static const String sendOtp = '$baseUrl/auth/send-otp';
-  static const String verifyOtp = '$baseUrl/auth/verify-otp';
+  static final String login = '$baseUrl/auth/login';
+  static final String register = '$baseUrl/auth/register';
+  static final String verify = '$baseUrl/auth/verify';
+  static final String sendOtp = '$baseUrl/auth/send-otp';
+  static final String verifyOtp = '$baseUrl/auth/verify-otp';
   // Correct route on server: PUT /auth/profile (change password)
-  static const String changePassword = '$baseUrl/auth/profile';
-  static const String profileInfo = '$baseUrl/auth/profile/info';
-  static const String createAdmin = '$baseUrl/auth/create-admin';
-  static const String forgotPassword = '$baseUrl/auth/forgot-password';
-  static const String resetPassword = '$baseUrl/auth/reset-password';
+  static final String changePassword = '$baseUrl/auth/profile';
+  static final String profileInfo = '$baseUrl/auth/profile/info';
+  static final String createAdmin = '$baseUrl/auth/create-admin';
+  static final String forgotPassword = '$baseUrl/auth/forgot-password';
+  static final String resetPassword = '$baseUrl/auth/reset-password';
+  static final String programmes = '$baseUrl/programmes';
 
   // ─── ROOMS ────────────────────────────────────────────────────────────────
-  static const String rooms = '$baseUrl/rooms';
+  static final String rooms = '$baseUrl/rooms';
   // Usage: '${ApiConfig.roomBeds(id)}'
   static String roomBeds(dynamic id) => '$baseUrl/rooms/$id/beds';
 
   // ─── BOOKINGS ─────────────────────────────────────────────────────────────
-  static const String bookings = '$baseUrl/bookings';
-  static const String activeBooking = '$baseUrl/bookings/active';
-  static const String bookingStatus = '$baseUrl/bookings/status';
-  static const String myBookings = '$baseUrl/bookings/my';
-  static const String allBookings = '$baseUrl/bookings/all';
-  static const String toggleBookings = '$baseUrl/bookings/toggle';
+  static final String bookings = '$baseUrl/bookings';
+  static final String activeBooking = '$baseUrl/bookings/active';
+  static final String bookingStatus = '$baseUrl/bookings/status';
+  static final String myBookings = '$baseUrl/bookings/my';
+  static final String allBookings = '$baseUrl/bookings/all';
+  static final String toggleBookings = '$baseUrl/bookings/toggle';
 
   // ─── PAYMENTS ─────────────────────────────────────────────────────────────
-  static const String payments = '$baseUrl/payments';
-  static const String myPayments = '$baseUrl/payments/my';
-  static const String allPayments = '$baseUrl/payments/all';
-  static const String stkPush = '$baseUrl/payments/stk-push';
-  static const String stkQuery = '$baseUrl/payments/stk-query';
+  static final String payments = '$baseUrl/payments';
+  static final String myPayments = '$baseUrl/payments/my';
+  static final String allPayments = '$baseUrl/payments/all';
+  static final String stkPush = '$baseUrl/payments/stk-push';
+  static final String stkQuery = '$baseUrl/payments/stk-query';
   // Correct route: PATCH /payments/:id/confirm — use confirmPayment(id)
   static String confirmPayment(dynamic id) => '$baseUrl/payments/$id/confirm';
 
   // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
-  static const String notifications = '$baseUrl/notifications';
+  static final String notifications = '$baseUrl/notifications';
   // Correct route: PATCH /notifications/read
-  static const String markRead = '$baseUrl/notifications/read';
+  static final String markRead = '$baseUrl/notifications/read';
   // Correct route: POST /notifications/send
-  static const String sendMessage = '$baseUrl/notifications/send';
+  static final String sendMessage = '$baseUrl/notifications/send';
 
   // ─── NOTICES ──────────────────────────────────────────────────────────────
-  static const String notices = '$baseUrl/notices';
+  static final String notices = '$baseUrl/notices';
 
   // ─── HEALTH ───────────────────────────────────────────────────────────────
-  static const String health = '$baseUrl/health';
+  static final String status = '$baseUrl/status';
+  static final String health = '$baseUrl/health';
+  static final String operations = '$baseUrl/operations';
 }

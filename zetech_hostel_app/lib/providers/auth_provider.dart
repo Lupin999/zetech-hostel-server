@@ -30,7 +30,10 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final res = await ApiClient.post(ApiConfig.login, body: {'email': email, 'password': password});
+    final res = await ApiClient.post(
+      ApiConfig.login,
+      body: {'email': email, 'password': password},
+    );
     final data = Map<String, dynamic>.from(res);
     token = data['token'].toString();
     user = User.fromJson(Map<String, dynamic>.from(data['user']));
@@ -42,7 +45,13 @@ class AuthProvider extends ChangeNotifier {
 
   Future<Map<String, dynamic>> register(Map<String, dynamic> data) async {
     final res = await ApiClient.post(ApiConfig.register, body: data);
-    return res;
+    final response = Map<String, dynamic>.from(res);
+    token = response['token'].toString();
+    user = User.fromJson(Map<String, dynamic>.from(response['user']));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token!);
+    notifyListeners();
+    return response;
   }
 
   Future<void> logout() async {
@@ -60,7 +69,10 @@ class AuthProvider extends ChangeNotifier {
 
   Future<Map<String, dynamic>> verifyOtp(String phone, String code) async {
     // Server expects { phone: '...', code: '...' }
-    final res = await ApiClient.post(ApiConfig.verifyOtp, body: {'phone': phone, 'code': code});
+    final res = await ApiClient.post(
+      ApiConfig.verifyOtp,
+      body: {'phone': phone, 'code': code},
+    );
     final data = Map<String, dynamic>.from(res);
     // OTP login also returns a token + user — persist them
     if (data['token'] != null) {

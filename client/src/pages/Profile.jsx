@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Typography, Paper, Box, Chip, TextField, Button, CircularProgress, Grid, Collapse } from '@mui/material';
+import { Typography, Paper, Box, Chip, TextField, Button, CircularProgress, Grid, Collapse, MenuItem } from '@mui/material';
 import { Edit, LocalHospital, Lock, Phone, PersonOutline, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -14,6 +14,7 @@ export default function Profile() {
     const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
     const [pwLoading, setPwLoading] = useState(false);
     const [pwFocused, setPwFocused] = useState(false);
+    const [programmes, setProgrammes] = useState([]);
     const [profileForm, setProfileForm] = useState({ full_name: '', course: '', phone: '' });
     const [profileSaving, setProfileSaving] = useState(false);
     const [editingProfile, setEditingProfile] = useState(false);
@@ -23,6 +24,12 @@ export default function Profile() {
     useEffect(() => {
         if (user) setProfileForm({ full_name: user.full_name || '', course: user.course || '', phone: user.phone || '' });
     }, [user]);
+
+    useEffect(() => {
+        api.get('/programmes')
+            .then(({ data }) => setProgrammes(data))
+            .catch(() => toast.error('Could not load the programme list.'));
+    }, []);
 
     useEffect(() => {
         if (user?.role === 'student') {
@@ -101,7 +108,6 @@ export default function Profile() {
                                 <Chip label={`Reg: ${user?.reg_no}`} />
                                 <Chip label={user?.email} />
                                 {user?.phone && <Chip icon={<Phone />} label={user.phone} color="info" />}
-                                <Chip label={user?.campus} />
                                 {user?.course && <Chip label={`Course: ${user.course}`} color="secondary" />}
                                 <Chip label={user?.role} color="primary" />
                             </Box>
@@ -115,9 +121,31 @@ export default function Profile() {
                                     onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
                                     placeholder="e.g. +254712345678"
                                     helperText="Used for phone login" />
-                                <TextField label="Course" fullWidth value={profileForm.course}
-                                    onChange={e => setProfileForm({ ...profileForm, course: e.target.value })}
-                                    placeholder="e.g. BSc Computer Science" />
+                                {user?.role === 'student' ? (
+                                    <TextField select label="Programme" fullWidth value={profileForm.course}
+                                        onChange={e => setProfileForm({ ...profileForm, course: e.target.value })}
+                                        disabled={!programmes.length}
+                                        sx={{
+                                            '& .MuiSelect-select': { color: '#1f2937' },
+                                            '& .MuiInputLabel-root': { color: '#4b5563' },
+                                            '& .MuiSvgIcon-root': { color: '#1a237e' },
+                                        }}
+                                        SelectProps={{ MenuProps: { PaperProps: { sx: { bgcolor: '#fff', color: '#1f2937', maxHeight: 360 } } } }}>
+                                        {profileForm.course && !programmes.some(programme => programme.name === profileForm.course) && (
+                                            <MenuItem value={profileForm.course} sx={{ color: '#1f2937' }}>{profileForm.course} (current)</MenuItem>
+                                        )}
+                                        {programmes.map(programme => (
+                                            <MenuItem key={`${programme.level}-${programme.name}`} value={programme.name}
+                                                sx={{ color: '#1f2937', '&.Mui-selected': { bgcolor: '#e8eaf6' } }}>
+                                                {programme.level}: {programme.name}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                ) : (
+                                    <TextField label="Course" fullWidth value={profileForm.course}
+                                        onChange={e => setProfileForm({ ...profileForm, course: e.target.value })}
+                                        placeholder="e.g. BSc Computer Science" />
+                                )}
                                 <Box sx={{ display: 'flex', gap: 1 }}>
                                     <Button variant="contained" onClick={saveProfile} disabled={profileSaving}>
                                         {profileSaving ? <CircularProgress size={20} /> : 'Save'}
@@ -194,7 +222,7 @@ export default function Profile() {
                                         onFocus={() => setPwFocused(true)} onBlur={() => setPwFocused(false)} />
                                     {pwFocused && (
                                         <Typography variant="caption" sx={{ color: '#888', ml: 0.5, mt: -1.5 }}>
-                                            Must be 6+ characters, letters & numbers only, at least 1 capital letter
+                                            At least 6 characters; letters and numbers only, with at least 1 capital letter and 1 number. For better security, choose a unique password of 12+ characters.
                                         </Typography>
                                     )}
                                     <TextField label="Confirm New Password" type="password" fullWidth

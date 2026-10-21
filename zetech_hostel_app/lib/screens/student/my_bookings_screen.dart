@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../config/api_config.dart';
 import '../../config/app_theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/payment_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/api_client.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common/custom_button.dart';
@@ -34,9 +36,13 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() { _loading = true; });
+    setState(() {
+      _loading = true;
+    });
     await Future.wait([_fetchBookings(), _fetchPayments()]);
-    setState(() { _loading = false; });
+    setState(() {
+      _loading = false;
+    });
   }
 
   Future<void> _fetchBookings() async {
@@ -45,7 +51,9 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       final res = await ApiClient.get(ApiConfig.myBookings);
       final list = res is List ? res : [];
       setState(() {
-        _bookings = list.map((b) => Booking.fromJson(Map<String, dynamic>.from(b))).toList();
+        _bookings = list
+            .map((b) => Booking.fromJson(Map<String, dynamic>.from(b)))
+            .toList();
       });
     } catch (_) {}
   }
@@ -56,13 +64,16 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       final res = await ApiClient.get(ApiConfig.myPayments);
       final list = res is List ? res : [];
       setState(() {
-        _payments = list.map((p) => Payment.fromJson(Map<String, dynamic>.from(p))).toList();
+        _payments = list
+            .map((p) => Payment.fromJson(Map<String, dynamic>.from(p)))
+            .toList();
       });
     } catch (_) {}
   }
 
   int get _totalCount => _bookings.length;
-  int get _approvedCount => _bookings.where((b) => b.status == 'approved').length;
+  int get _approvedCount =>
+      _bookings.where((b) => b.status == 'approved').length;
   int get _pendingCount => _bookings.where((b) => b.status == 'pending').length;
 
   void _handleCancel(Booking booking) {
@@ -70,17 +81,27 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       context: context,
       dialogType: DialogType.warning,
       title: 'Cancel Booking',
-      desc: 'Are you sure you want to cancel your booking for Room ${booking.roomNumber}?',
+      desc:
+          'Are you sure you want to cancel your booking for Room ${booking.roomNumber}?',
       btnOkText: 'Yes, Cancel',
       btnOkColor: Colors.red,
       btnCancelText: 'No',
       btnOkOnPress: () async {
         try {
           await ApiClient.delete('${ApiConfig.bookings}/${booking.id}');
-          Fluttertoast.showToast(msg: 'Booking cancelled', backgroundColor: Colors.green);
+          Fluttertoast.showToast(
+            msg: 'Booking cancelled',
+            backgroundColor: Colors.green,
+          );
           _loadData();
         } catch (e) {
-          AwesomeDialog(context: context, dialogType: DialogType.error, title: 'Error', desc: e.toString().replaceFirst('Exception: ', ''), btnOkOnPress: () {}).show();
+          AwesomeDialog(
+            context: context,
+            dialogType: DialogType.error,
+            title: 'Error',
+            desc: e.toString().replaceFirst('Exception: ', ''),
+            btnOkOnPress: () {},
+          ).show();
         }
       },
       btnCancelOnPress: () {},
@@ -94,56 +115,96 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) {
-        return Padding(
-          padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.phone_android, size: 48, color: Colors.green),
-              const SizedBox(height: 12),
-              const Text('M-Pesa Payment', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('Amount: KES ${Helpers.formatAmount(30000)}', style: const TextStyle(fontSize: 16, color: AppTheme.primary, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              CustomTextField(
-                label: 'Phone Number',
-                hint: '07XXXXXXXX',
-                controller: phoneController,
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              CustomButton(
-                label: 'Send M-Pesa Request',
-                isLoading: sending,
-                onPressed: sending ? null : () async {
-                  if (phoneController.text.trim().isEmpty) return;
-                  setSheetState(() { sending = true; });
-                  try {
-                    await ApiClient.post(ApiConfig.stkPush, body: {
-                      'phone': phoneController.text.trim(),
-                      'booking_id': int.tryParse(booking.id ?? '') ?? booking.id,
-                    });
-                    Navigator.pop(ctx);
-                    AwesomeDialog(
-                      context: context,
-                      dialogType: DialogType.info,
-                      title: 'Check Your Phone',
-                      desc: 'Enter your M-Pesa PIN to complete payment of KES ${Helpers.formatAmount(30000)}',
-                      btnOkOnPress: () {},
-                    ).show();
-                    _pollPayment(booking.id!);
-                  } catch (e) {
-                    setSheetState(() { sending = false; });
-                    AwesomeDialog(context: context, dialogType: DialogType.error, title: 'Error', desc: e.toString().replaceFirst('Exception: ', ''), btnOkOnPress: () {}).show();
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      }),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.phone_android, size: 48, color: Colors.green),
+                const SizedBox(height: 12),
+                const Text(
+                  'M-Pesa Payment',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Amount: KES ${Helpers.formatAmount(30000)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppTheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                CustomTextField(
+                  label: 'Phone Number',
+                  hint: '07XXXXXXXX',
+                  controller: phoneController,
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                CustomButton(
+                  label: 'Send M-Pesa Request',
+                  isLoading: sending,
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          if (phoneController.text.trim().isEmpty) return;
+                          setSheetState(() {
+                            sending = true;
+                          });
+                          try {
+                            await ApiClient.post(
+                              ApiConfig.stkPush,
+                              body: {
+                                'phone': phoneController.text.trim(),
+                                'booking_id':
+                                    int.tryParse(booking.id ?? '') ??
+                                    booking.id,
+                              },
+                            );
+                            Navigator.pop(ctx);
+                            AwesomeDialog(
+                              context: context,
+                              dialogType: DialogType.info,
+                              title: 'Check Your Phone',
+                              desc:
+                                  'Enter your M-Pesa PIN to complete payment of KES ${Helpers.formatAmount(30000)}',
+                              btnOkOnPress: () {},
+                            ).show();
+                            _pollPayment(booking.id!);
+                          } catch (e) {
+                            setSheetState(() {
+                              sending = false;
+                            });
+                            AwesomeDialog(
+                              context: context,
+                              dialogType: DialogType.error,
+                              title: 'Error',
+                              desc: e.toString().replaceFirst(
+                                'Exception: ',
+                                '',
+                              ),
+                              btnOkOnPress: () {},
+                            ).show();
+                          }
+                        },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -163,9 +224,11 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
         // Server returns a flat array; field is booking_id (snake_case)
         final res = await ApiClient.get(ApiConfig.myPayments);
         final list = res is List ? res : [];
-        final confirmed = list.any((p) =>
-            p['booking_id']?.toString() == bookingId &&
-            p['status'] == 'confirmed');
+        final confirmed = list.any(
+          (p) =>
+              p['booking_id']?.toString() == bookingId &&
+              p['status'] == 'confirmed',
+        );
         if (confirmed) {
           timer.cancel();
           _loadData();
@@ -182,72 +245,134 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   }
 
   void _handleManualPay(Booking booking) {
-    final amountController = TextEditingController(text: '30000');
+    final amountController = TextEditingController(
+      text: (booking.price ?? 30000).toStringAsFixed(0),
+    );
     final mpesaCodeController = TextEditingController();
     String paymentMethod = 'mpesa';
     bool submitting = false;
+    final registrationNumber =
+        context.read<AuthProvider>().user?.regNo ??
+        'Your admission/registration number';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) {
-        return Padding(
-          padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Manual Payment', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: paymentMethod,
-                decoration: const InputDecoration(labelText: 'Payment Method'),
-                items: const [
-                  DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Manual Payment',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: paymentMethod,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment Method',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),
+                    DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                  ],
+                  onChanged: (val) => setSheetState(() {
+                    paymentMethod = val!;
+                  }),
+                ),
+                if (paymentMethod == 'mpesa') ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Pay via M-Pesa: Lipa na M-Pesa → Paybill. Business number: ${ApiConfig.schoolPaybill}. '
+                      'Account number: $registrationNumber. Pay the amount below, then enter the M-Pesa confirmation code. '
+                      'Payment remains pending until staff verify it.',
+                    ),
+                  ),
                 ],
-                onChanged: (val) => setSheetState(() { paymentMethod = val!; }),
-              ),
-              const SizedBox(height: 12),
-              CustomTextField(
-                label: 'Amount',
-                controller: amountController,
-                keyboardType: TextInputType.number,
-              ),
-              if (paymentMethod == 'mpesa') ...[
                 const SizedBox(height: 12),
                 CustomTextField(
-                  label: 'M-Pesa Code',
-                  hint: 'e.g. SHK12345XY',
-                  controller: mpesaCodeController,
+                  label: 'Amount',
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                ),
+                if (paymentMethod == 'mpesa') ...[
+                  const SizedBox(height: 12),
+                  CustomTextField(
+                    label: 'M-Pesa Code',
+                    hint: 'e.g. SHK12345XY',
+                    controller: mpesaCodeController,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                CustomButton(
+                  label: 'Submit Payment',
+                  isLoading: submitting,
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          setSheetState(() {
+                            submitting = true;
+                          });
+                          try {
+                            await ApiClient.post(
+                              ApiConfig.payments,
+                              body: {
+                                'booking_id': booking.id,
+                                'amount':
+                                    double.tryParse(amountController.text) ??
+                                    30000,
+                                'payment_method': paymentMethod,
+                                if (paymentMethod == 'mpesa')
+                                  'mpesa_code': mpesaCodeController.text.trim(),
+                              },
+                            );
+                            Navigator.pop(ctx);
+                            Fluttertoast.showToast(
+                              msg:
+                                  'Payment submitted, awaiting admin confirmation',
+                              backgroundColor: Colors.green,
+                            );
+                            _loadData();
+                          } catch (e) {
+                            setSheetState(() {
+                              submitting = false;
+                            });
+                            AwesomeDialog(
+                              context: context,
+                              dialogType: DialogType.error,
+                              title: 'Error',
+                              desc: e.toString().replaceFirst(
+                                'Exception: ',
+                                '',
+                              ),
+                              btnOkOnPress: () {},
+                            ).show();
+                          }
+                        },
                 ),
               ],
-              const SizedBox(height: 16),
-              CustomButton(
-                label: 'Submit Payment',
-                isLoading: submitting,
-                onPressed: submitting ? null : () async {
-                  setSheetState(() { submitting = true; });
-                  try {
-                    await ApiClient.post(ApiConfig.payments, body: {
-                      'booking_id': booking.id,
-                      'amount': double.tryParse(amountController.text) ?? 30000,
-                      'payment_method': paymentMethod,
-                      if (paymentMethod == 'mpesa') 'mpesa_code': mpesaCodeController.text.trim(),
-                    });
-                    Navigator.pop(ctx);
-                    Fluttertoast.showToast(msg: 'Payment submitted, awaiting admin confirmation', backgroundColor: Colors.green);
-                    _loadData();
-                  } catch (e) {
-                    setSheetState(() { submitting = false; });
-                    AwesomeDialog(context: context, dialogType: DialogType.error, title: 'Error', desc: e.toString().replaceFirst('Exception: ', ''), btnOkOnPress: () {}).show();
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      }),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -256,26 +381,35 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Bookings'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/dashboard')),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/dashboard'),
+        ),
       ),
       body: _loading
           ? const LoadingSpinner()
           : RefreshIndicator(
               onRefresh: _loadData,
               child: _bookings.isEmpty
-                  ? ListView(children: [
-                      const SizedBox(height: 100),
-                      const EmptyState(
-                        icon: Icons.calendar_today,
-                        title: 'No bookings yet',
-                        subtitle: 'Browse available rooms and make your first booking',
-                      ),
-                      const SizedBox(height: 16),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 48),
-                        child: CustomButton(label: 'Browse Rooms', onPressed: () => context.go('/rooms')),
-                      ),
-                    ])
+                  ? ListView(
+                      children: [
+                        const SizedBox(height: 100),
+                        const EmptyState(
+                          icon: Icons.calendar_today,
+                          title: 'No bookings yet',
+                          subtitle:
+                              'Browse available rooms and make your first booking',
+                        ),
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 48),
+                          child: CustomButton(
+                            label: 'Browse Rooms',
+                            onPressed: () => context.go('/rooms'),
+                          ),
+                        ),
+                      ],
+                    )
                   : ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
@@ -291,13 +425,15 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                         ),
                         const SizedBox(height: 16),
                         // Bookings list
-                        ..._bookings.map((b) => BookingCard(
-                          booking: b,
-                          payments: _payments,
-                          onCancel: () => _handleCancel(b),
-                          onMpesaPay: () => _handleMpesaPay(b),
-                          onManualPay: () => _handleManualPay(b),
-                        )),
+                        ..._bookings.map(
+                          (b) => BookingCard(
+                            booking: b,
+                            payments: _payments,
+                            onCancel: () => _handleCancel(b),
+                            onMpesaPay: () => _handleMpesaPay(b),
+                            onManualPay: () => _handleManualPay(b),
+                          ),
+                        ),
                       ],
                     ),
             ),
@@ -312,7 +448,14 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Column(
             children: [
-              Text('$count', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
               Text(label, style: TextStyle(fontSize: 12, color: color)),
             ],
           ),

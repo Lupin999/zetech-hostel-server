@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
     Typography, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, Paper, Chip, Box,
-    Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
+    Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Alert,
     CircularProgress
 } from '@mui/material';
 import { EventBusy } from '@mui/icons-material';
@@ -16,9 +16,12 @@ import EmptyState from '../components/common/EmptyState';
 import BookingStatusChip from '../components/bookings/BookingStatusChip';
 import MpesaDialog from '../components/payments/MpesaDialog';
 import { formatDate } from '../utils/helpers';
+import { useAuth } from '../context/AuthContext';
+import { SCHOOL_PAYBILL } from '../utils/constants';
 
 
 export default function MyBookings() {
+    const { user } = useAuth();
     const { bookings, loading: bLoading, fetchMyBookings } = useBookings();
     const { payments, loading: pLoading, fetchMyPayments, initStkPush, queryStkStatus, submit: submitPayment } = usePayments();
     const loading = bLoading || pLoading;
@@ -171,8 +174,8 @@ export default function MyBookings() {
                                                         M-Pesa
                                                     </Button>
                                                     <Button size="small" variant="outlined"
-                                                        onClick={() => { setSelectedBooking(b); setPayForm({ amount: b.price, payment_method: 'cash', mpesa_code: '' }); setPayOpen(true); }}>
-                                                        Manual
+                                                        onClick={() => { setSelectedBooking(b); setPayForm({ amount: b.price, payment_method: 'mpesa', mpesa_code: '' }); setPayOpen(true); }}>
+                                                        Paybill
                                                     </Button>
                                                 </Box>
                                             )}
@@ -195,6 +198,13 @@ export default function MyBookings() {
             <Dialog open={payOpen} onClose={() => setPayOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>Manual Payment — Room {selectedBooking?.room_number}</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                    {payForm.payment_method === 'mpesa' && (
+                        <Alert severity="info">
+                            Pay via M-Pesa: go to Lipa na M-Pesa → Paybill. Business number: <strong>{SCHOOL_PAYBILL}</strong>.
+                            Account number: <strong>{user?.reg_no || 'Your admission/registration number'}</strong>.
+                            Pay the amount below, then enter the M-Pesa confirmation code. Payment remains pending until staff verify it.
+                        </Alert>
+                    )}
                     <TextField label="Amount (KES)" type="number" value={payForm.amount}
                         onChange={e => setPayForm({ ...payForm, amount: e.target.value })} />
                     <TextField label="Payment Method" select value={payForm.payment_method}

@@ -36,7 +36,30 @@ export default function SplashScreen({ onComplete }) {
         setTimeout(onComplete, 500);
     }, [onComplete, bgCtrl, waveCtrl]);
 
-    useEffect(() => { runSequence(); }, [runSequence]);
+    useEffect(() => {
+        let cancelled = false;
+
+        const tick = async () => {
+            if (cancelled) return;
+            await new Promise(r => setTimeout(r, 800));
+            if (cancelled) return;
+            setPhase(1);
+            waveCtrl.start({ x: '0%', transition: { duration: 0.6, ease: [0.33, 1, 0.68, 1] } });
+            bgCtrl.start({ opacity: 1, transition: { duration: 0.7 } });
+
+            await new Promise(r => setTimeout(r, 800));
+            if (cancelled) return;
+            setPhase(2);
+
+            await new Promise(r => setTimeout(r, 1000));
+            if (cancelled) return;
+            setVisible(false);
+            setTimeout(onComplete, 500);
+        };
+
+        tick();
+        return () => { cancelled = true; };
+    }, [bgCtrl, waveCtrl, onComplete]);
 
     const letters = 'ZETECH'.split('');
 

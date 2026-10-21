@@ -6,7 +6,7 @@ import {
     Chip, TextField, MenuItem, Divider, Dialog, DialogTitle,
     DialogContent, DialogActions, IconButton, Tooltip, Alert
 } from '@mui/material';
-import { Hotel, KingBed, CheckCircle, EventAvailable, Delete, Add, Campaign, Refresh, Edit } from '@mui/icons-material';
+import { Hotel, KingBed, CheckCircle, EventAvailable, Delete, Add, Campaign } from '@mui/icons-material';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
@@ -47,6 +47,7 @@ export default function AdminDashboard() {
     const [profileDialog, setProfileDialog] = useState(false);
     const [profileForm, setProfileForm] = useState({ email: user?.email || '', phone: user?.phone || '' });
     const [profileSaving, setProfileSaving] = useState(false);
+    const [adminTab, setAdminTab] = useState('bookings');
 
     const fetchData = async () => {
         setLoading(true);
@@ -64,6 +65,45 @@ export default function AdminDashboard() {
         datasets: [{ data: [bookings.filter(b => b.status === 'pending').length, bookings.filter(b => b.status === 'approved').length, bookings.filter(b => b.status === 'rejected').length], backgroundColor: ['#fb8c00', '#43a047', '#e53935'] }],
     };
     const filtered = filter === 'all' ? bookings : bookings.filter(b => b.status === filter);
+
+    const renderRoomSection = (hostel) => {
+        const rows = rooms.filter(room => room.hostel === hostel);
+        return (
+            <Paper key={hostel} sx={{ overflow: 'hidden', mb: 3 }}>
+                <Box sx={{ px: 2, py: 1.5, bgcolor: hostel === 'Boys' ? '#eef2ff' : '#fdf2f8', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 800, color: hostel === 'Boys' ? '#1a237e' : '#be185d' }}>
+                        {hostel} Hostel
+                    </Typography>
+                </Box>
+                <TableContainer>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow>{['Room', 'Type', 'Capacity', 'Occupied', 'Price', 'Status', ''].map(h => <TableCell key={h}>{h}</TableCell>)}</TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {!rows.length ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>No rooms in {hostel}</TableCell>
+                                </TableRow>
+                            ) : rows.map(r => (
+                                <TableRow key={r.id}>
+                                    <TableCell>{r.room_number}</TableCell>
+                                    <TableCell>{r.room_type || 'quad'}</TableCell>
+                                    <TableCell>{r.capacity}</TableCell>
+                                    <TableCell>
+                                        <Chip label={`${r.occupied}/${r.capacity}`} size="small" color={r.occupied >= r.capacity ? 'error' : 'success'} variant="outlined" />
+                                    </TableCell>
+                                    <TableCell>KES {Number(r.price).toLocaleString()}</TableCell>
+                                    <TableCell><Chip label={r.status} size="small" color={r.status === 'available' ? 'success' : 'warning'} /></TableCell>
+                                    <TableCell><Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => handleDeleteRoom(r.id, r.room_number)}><Delete fontSize="small" /></IconButton></Tooltip></TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Paper>
+        );
+    };
 
     const handleStatus = async (id, status) => {
         const action = status === 'approved' ? 'Approve' : 'Reject';
@@ -175,11 +215,16 @@ export default function AdminDashboard() {
                 <Box sx={{ position: 'absolute', inset: 0, backgroundImage: `url(${dImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                 <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(13,27,42,0.88), rgba(26,35,126,0.75))' }} />
                 <Box sx={{ position: 'absolute', inset: 0, m: { xs: 2, md: 4 }, borderRadius: 2, backdropFilter: 'blur(16px)', bgcolor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', justifyContent: 'center', px: { xs: 3, md: 5 } }}>
+                    <Button
+                        onClick={() => { setProfileForm({ email: user?.email || '', phone: user?.phone || '' }); setProfileDialog(true); }}
+                        sx={{ position: 'absolute', top: 18, right: 18, borderRadius: 999, px: 2, py: 0.75, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', textTransform: 'none', fontWeight: 700 }}
+                    >
+                        Account
+                    </Button>
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
                         <Typography variant="h5" sx={{ color: '#FFD700', fontWeight: 700, mb: 0.5 }}>Admin Dashboard</Typography>
                     </motion.div>
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}>
-                        <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700 }}>{user?.full_name}</Typography>
                         <Typography variant="body1" component="div" sx={{ color: 'rgba(255,255,255,0.8)', mt: 0.5 }}>
                             {user?.role} • Booking: <Chip label={bookingOpen ? 'OPEN' : 'CLOSED'} size="small" color={bookingOpen ? 'success' : 'error'} sx={{ color: '#fff', fontWeight: 700 }} />
                         </Typography>
@@ -204,8 +249,6 @@ export default function AdminDashboard() {
                     <Button variant={bookingOpen ? 'outlined' : 'contained'} color={bookingOpen ? 'error' : 'success'} onClick={handleToggleBooking}>
                         {bookingOpen ? '🔒 Close Booking' : '🔓 Open Booking'}
                     </Button>
-                    <Button variant="outlined" startIcon={<Refresh />} onClick={() => { setLoading(true); fetchData(); }}>Refresh</Button>
-                    <Button variant="outlined" startIcon={<Edit />} onClick={() => { setProfileForm({ email: user?.email || '', phone: user?.phone || '' }); setProfileDialog(true); }} sx={{ color: '#1a237e', borderColor: '#1a237e' }}>My Account</Button>
                 </Box>
                 <Divider sx={{ my: 2 }} />
                 <Typography variant="body2" color="text.secondary">
@@ -213,51 +256,74 @@ export default function AdminDashboard() {
                 </Typography>
             </Paper>
 
-            {/* Chart */}
-            {bookings.length > 0 && (
-                <Paper sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'center' }}>
-                    <Box sx={{ maxWidth: 260 }}>
-                        <Typography variant="h6" align="center" gutterBottom>Booking Overview</Typography>
-                        <Doughnut data={chartData} options={{ plugins: { legend: { position: 'bottom' } } }} />
-                    </Box>
-                </Paper>
-            )}
-
-            {/* Bookings Table */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Student Bookings</Typography>
-                <TextField select size="small" value={filter} onChange={e => setFilter(e.target.value)} sx={{ minWidth: 150 }}>
-                    <MenuItem value="all">All ({bookings.length})</MenuItem>
-                    <MenuItem value="pending">Pending ({bookings.filter(b => b.status === 'pending').length})</MenuItem>
-                    <MenuItem value="approved">Approved ({bookings.filter(b => b.status === 'approved').length})</MenuItem>
-                    <MenuItem value="rejected">Rejected ({bookings.filter(b => b.status === 'rejected').length})</MenuItem>
-                </TextField>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+                {[
+                    { key: 'bookings', label: 'Student Bookings' },
+                    { key: 'boys', label: 'Boys Hostel' },
+                    { key: 'girls', label: 'Girls Hostel' },
+                    { key: 'notices', label: 'Notices' },
+                ].map(tab => (
+                    <Button
+                        key={tab.key}
+                        variant={adminTab === tab.key ? 'contained' : 'outlined'}
+                        onClick={() => setAdminTab(tab.key)}
+                        sx={{ minWidth: 150 }}
+                    >
+                        {tab.label}
+                    </Button>
+                ))}
             </Box>
-            <TableContainer component={Paper} sx={{ overflowX: 'auto', mb: 3 }}>
+
+            {adminTab === 'bookings' && (
+                <>
+                    {/* Chart */}
+                    {bookings.length > 0 && (
+                        <Paper sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'center' }}>
+                            <Box sx={{ maxWidth: 260 }}>
+                                <Typography variant="h6" align="center" gutterBottom>Booking Overview</Typography>
+                                <Doughnut data={chartData} options={{ plugins: { legend: { position: 'bottom' } } }} />
+                            </Box>
+                        </Paper>
+                    )}
+
+                    {/* Bookings Table */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6">Student Bookings</Typography>
+                        <TextField select size="small" value={filter} onChange={e => setFilter(e.target.value)} sx={{ minWidth: 150 }}>
+                            <MenuItem value="all">All ({bookings.length})</MenuItem>
+                            <MenuItem value="pending">Pending ({bookings.filter(b => b.status === 'pending').length})</MenuItem>
+                            <MenuItem value="approved">Approved ({bookings.filter(b => b.status === 'approved').length})</MenuItem>
+                            <MenuItem value="rejected">Rejected ({bookings.filter(b => b.status === 'rejected').length})</MenuItem>
+                        </TextField>
+                    </Box>
+                    <TableContainer component={Paper} sx={{ overflowX: 'auto', mb: 3 }}>
                 <Table>
                     <TableHead><TableRow>
                         {['Student', 'Reg No', 'Room', 'Bed', 'Hostel', 'Arrival', 'Status', 'Payment', 'Actions'].map(h => <TableCell key={h}>{h}</TableCell>)}
                     </TableRow></TableHead>
                     <TableBody>
                         {!filtered.length ? <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4, color: 'text.secondary' }}>No bookings</TableCell></TableRow> :
-                        filtered.map(b => (
-                            <TableRow key={b.id} sx={{ bgcolor: b.status === 'pending' ? 'rgba(251,140,0,0.04)' : undefined }}>
-                                <TableCell>{b.full_name}</TableCell>
-                                <TableCell>{b.reg_no}</TableCell>
-                                <TableCell>{b.room_number}</TableCell>
-                                <TableCell>{b.bed_number ? `${b.bed_number} (${b.bed_position || ''})` : '—'}</TableCell>
-                                <TableCell>{b.hostel}</TableCell>
-                                <TableCell>{b.arrival_date ? formatDate(b.arrival_date) : '—'}</TableCell>
-                                <TableCell><Chip label={b.status} size="small" color={b.status === 'approved' ? 'success' : b.status === 'rejected' ? 'error' : 'warning'} /></TableCell>
-                                <TableCell>{b.payment_status ? <Chip label={b.payment_status === 'confirmed' ? 'Paid' : 'Pending'} size="small" color={b.payment_status === 'confirmed' ? 'success' : 'warning'} variant="outlined" /> : '—'}</TableCell>
-                                <TableCell>
-                                    {b.status === 'pending' && <Box sx={{ display: 'flex', gap: 0.5 }}><Button size="small" color="success" variant="contained" onClick={() => handleStatus(b.id, 'approved')}>Approve</Button><Button size="small" color="error" variant="outlined" onClick={() => handleStatus(b.id, 'rejected')}>Reject</Button></Box>}
-                                    {b.status === 'approved' && b.payment_status === 'pending' && <Button size="small" color="success" variant="contained" onClick={() => handleConfirmPayment(b.id)}>Confirm Pay</Button>}
+                        filtered.map(b => {
+                            const hasBed = b.bed_number && String(b.bed_number).trim() !== '0';
+                            const hasPayment = b.payment_status && String(b.payment_status).trim() !== '0';
+                            return (
+                                <TableRow key={b.id} sx={{ bgcolor: b.status === 'pending' ? 'rgba(251,140,0,0.04)' : undefined }}>
+                                    <TableCell>{b.full_name}</TableCell>
+                                    <TableCell>{b.reg_no}</TableCell>
+                                    <TableCell>{b.room_number}</TableCell>
+                                    <TableCell>{hasBed ? `${b.bed_number} (${b.bed_position || ''})` : '—'}</TableCell>
+                                    <TableCell>{b.hostel}</TableCell>
+                                    <TableCell>{b.arrival_date ? formatDate(b.arrival_date) : '—'}</TableCell>
+                                    <TableCell><Chip label={b.status} size="small" color={b.status === 'approved' ? 'success' : b.status === 'rejected' ? 'error' : 'warning'} /></TableCell>
+                                    <TableCell>{hasPayment ? <Chip label={b.payment_status === 'confirmed' ? 'Paid' : 'Pending'} size="small" color={b.payment_status === 'confirmed' ? 'success' : 'warning'} variant="outlined" /> : '—'}</TableCell>
+                                    <TableCell>
+                                    {b.status === 'pending' && <Box sx={{ display: 'flex', gap: 0.5 }}><Button size="small" color="success" variant="contained" onClick={() => handleStatus(b.id, 'approved')} sx={{ bgcolor: '#2e7d32', boxShadow: '0 4px 12px rgba(46,125,50,0.35)', color: '#fff', '&:hover': { bgcolor: '#256629' } }}>Approve</Button><Button size="small" color="error" variant="outlined" onClick={() => handleStatus(b.id, 'rejected')} sx={{ borderWidth: 2, fontWeight: 700 }}>Reject</Button></Box>}
+                                    {user?.role !== 'warden' && b.status === 'approved' && b.payment_status === 'pending' && <Button size="small" color="success" variant="contained" onClick={() => handleConfirmPayment(b.id)} sx={{ bgcolor: '#1e88e5', boxShadow: '0 4px 12px rgba(30,136,229,0.35)', color: '#fff', '&:hover': { bgcolor: '#1565c0' } }}>Confirm Pay</Button>}
                                     {b.status === 'approved' && !b.suspended && (
-                                        <Button size="small" color="warning" variant="outlined" sx={{ ml: 0.5 }}
+                                        <Button size="small" color="warning" variant="contained" sx={{ ml: 0.5, bgcolor: '#f9a825', color: '#111', fontWeight: 700, boxShadow: '0 4px 12px rgba(249,168,37,0.35)', '&:hover': { bgcolor: '#f59e0b' } }}
                                             onClick={() => { setSuspendTarget(b); setSuspendReason(''); setSuspendDialog(true); }}>Suspend</Button>
                                     )}
-                                    <Button size="small" variant="outlined" sx={{ ml: 0.5 }}
+                                    <Button size="small" variant="contained" sx={{ ml: 0.5, bgcolor: '#1a237e', color: '#fff', boxShadow: '0 4px 12px rgba(26,35,126,0.30)', '&:hover': { bgcolor: '#101a73' } }}
                                         onClick={() => { setMsgTarget(b); setMsgText(''); setMsgDialog(true); }}>💬 Message</Button>
                                     {b.status === 'approved' && b.suspended && (
                                         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
@@ -268,54 +334,60 @@ export default function AdminDashboard() {
                                     {b.status === 'approved' && b.payment_status === 'confirmed' && !b.suspended && <Chip label="✓ Complete" size="small" color="success" />}
                                 </TableCell>
                             </TableRow>
-                        ))}
+                            );
+                        })}
                     </TableBody>
                 </Table>
-            </TableContainer>
+                    </TableContainer>
+                </>
+            )}
 
-            {/* Room Management */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Rooms</Typography>
-                <Button size="small" startIcon={<Add />} onClick={() => setRoomDialog(true)}>Add Room</Button>
-            </Box>
-            <TableContainer component={Paper} sx={{ overflowX: 'auto', mb: 3 }}>
-                <Table size="small">
-                    <TableHead><TableRow>{['Room', 'Hostel', 'Type', 'Capacity', 'Occupied', 'Price', 'Status', ''].map(h => <TableCell key={h}>{h}</TableCell>)}</TableRow></TableHead>
-                    <TableBody>{rooms.map(r => (
-                        <TableRow key={r.id}>
-                            <TableCell>{r.room_number}</TableCell><TableCell>{r.hostel}</TableCell><TableCell>{r.room_type}</TableCell><TableCell>{r.capacity}</TableCell>
-                            <TableCell><Chip label={`${r.occupied}/${r.capacity}`} size="small" color={r.occupied >= r.capacity ? 'error' : 'success'} variant="outlined" /></TableCell>
-                            <TableCell>KES {Number(r.price).toLocaleString()}</TableCell>
-                            <TableCell><Chip label={r.status} size="small" color={r.status === 'available' ? 'success' : 'warning'} /></TableCell>
-                            <TableCell><Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => handleDeleteRoom(r.id, r.room_number)}><Delete fontSize="small" /></IconButton></Tooltip></TableCell>
-                        </TableRow>
-                    ))}</TableBody>
-                </Table>
-            </TableContainer>
-
-            {/* Notices */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Notices</Typography>
-                <Button size="small" startIcon={<Campaign />} onClick={() => setNoticeDialog(true)}>Post</Button>
-            </Box>
-            <Paper sx={{ mb: 3 }}>
-                {!notices.length ? <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}><Typography>No notices</Typography></Box> :
-                notices.map(n => (
-                    <Box key={n.id} sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                <Typography fontWeight={600}>{n.title}</Typography>
-                                <Chip label={n.target === 'all' ? '📢 All' : n.target === 'boys' ? '🏠 Boys' : '🏠 Girls'}
-                                    size="small" color={n.target === 'all' ? 'default' : n.target === 'boys' ? 'primary' : 'secondary'}
-                                    sx={{ height: 22, fontSize: '0.7rem' }} />
-                            </Box>
-                            <Typography variant="body2" color="text.secondary">{n.message}</Typography>
-                            <Typography variant="caption" color="text.disabled">{formatDate(n.created_at)} • {n.author}</Typography>
-                        </Box>
-                        <IconButton size="small" color="error" onClick={() => handleDeleteNotice(n.id)}><Delete fontSize="small" /></IconButton>
+            {adminTab === 'boys' && (
+                <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6">Boys Hostel</Typography>
+                        <Button size="small" startIcon={<Add />} onClick={() => setRoomDialog(true)}>Add Room</Button>
                     </Box>
-                ))}
-            </Paper>
+                    {renderRoomSection('Boys')}
+                </>
+            )}
+
+            {adminTab === 'girls' && (
+                <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6">Girls Hostel</Typography>
+                        <Button size="small" startIcon={<Add />} onClick={() => setRoomDialog(true)}>Add Room</Button>
+                    </Box>
+                    {renderRoomSection('Girls')}
+                </>
+            )}
+
+            {adminTab === 'notices' && (
+                <>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6">Notices</Typography>
+                        <Button size="small" startIcon={<Campaign />} onClick={() => setNoticeDialog(true)}>Post</Button>
+                    </Box>
+                    <Paper sx={{ mb: 3 }}>
+                        {!notices.length ? <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}><Typography>No notices</Typography></Box> :
+                        notices.map(n => (
+                            <Box key={n.id} sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Box>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                        <Typography fontWeight={600}>{n.title}</Typography>
+                                        <Chip label={n.target === 'all' ? '📢 All' : n.target === 'Boys' ? '🏠 Boys' : '🏠 Girls'}
+                                            size="small" color={n.target === 'all' ? 'default' : n.target === 'Boys' ? 'primary' : 'secondary'}
+                                            sx={{ height: 22, fontSize: '0.7rem' }} />
+                                    </Box>
+                                    <Typography variant="body2" color="text.secondary">{n.message}</Typography>
+                                    <Typography variant="caption" color="text.disabled">{formatDate(n.created_at)} • {n.author}</Typography>
+                                </Box>
+                                <IconButton size="small" color="error" onClick={() => handleDeleteNotice(n.id)}><Delete fontSize="small" /></IconButton>
+                            </Box>
+                        ))}
+                    </Paper>
+                </>
+            )}
 
             {/* Dialogs */}
             {/* Message Dialog */}
@@ -372,8 +444,8 @@ export default function AdminDashboard() {
                     <TextField label="Target Audience" select value={noticeForm.target}
                         onChange={e => setNoticeForm({ ...noticeForm, target: e.target.value })}>
                         <MenuItem value="all">📢 Everyone</MenuItem>
-                        <MenuItem value="boys">🏠 Boys Hostel Only</MenuItem>
-                        <MenuItem value="girls">🏠 Girls Hostel Only</MenuItem>
+                        <MenuItem value="Boys">🏠 Boys Hostel Only</MenuItem>
+                        <MenuItem value="Girls">🏠 Girls Hostel Only</MenuItem>
                     </TextField>
                     <TextField label="Title" value={noticeForm.title} onChange={e => setNoticeForm({ ...noticeForm, title: e.target.value })} />
                     <TextField label="Message" multiline rows={4} value={noticeForm.message} onChange={e => setNoticeForm({ ...noticeForm, message: e.target.value })} />
@@ -393,7 +465,7 @@ export default function AdminDashboard() {
                         placeholder="admin@zetech.ac.ke" />
                     <TextField label="Phone Number" fullWidth value={profileForm.phone}
                         onChange={e => setProfileForm({ ...profileForm, phone: e.target.value.replace(/[^0-9+]/g, '') })}
-                        placeholder="+254712345678"
+                        placeholder="+254"
                         helperText="Include country code (e.g. +254). Used for phone login via OTP." />
                 </DialogContent>
                 <DialogActions>

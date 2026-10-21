@@ -30,7 +30,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   HealthProfile? _healthProfile;
 
   final _fullNameController = TextEditingController();
-  final _courseController = TextEditingController();
+  List<Map<String, dynamic>> _programmes = [];
+  String? _selectedCourse;
+  bool _programmesLoading = true;
+  String? _programmeLoadError;
   final _medicalController = TextEditingController();
   final _dietaryController = TextEditingController();
   final _currentPasswordController = TextEditingController();
@@ -46,20 +49,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     final user = context.read<AuthProvider>().user;
     _fullNameController.text = user?.fullName ?? '';
-    _courseController.text = user?.course ?? '';
+    _selectedCourse = user?.course;
+    _loadProgrammes();
     _loadData();
   }
 
   @override
   void dispose() {
     _fullNameController.dispose();
-    _courseController.dispose();
     _medicalController.dispose();
     _dietaryController.dispose();
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProgrammes() async {
+    try {
+      final response = await ApiClient.get(ApiConfig.programmes);
+      if (!mounted) return;
+      setState(() {
+        _programmes = List<Map<String, dynamic>>.from(response);
+        _programmesLoading = false;
+        _programmeLoadError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _programmesLoading = false;
+        _programmeLoadError = 'Could not load the programme list. Tap to retry.';
+      });
+    }
   }
 
   Future<void> _loadData() async {
@@ -106,7 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await ApiClient.put('${ApiConfig.baseUrl}/auth/profile/info', body: {
         'full_name': _fullNameController.text.trim(),
-        'course': _courseController.text.trim(),
+        'course': _selectedCourse,
       });
       final auth = context.read<AuthProvider>();
       auth.updateUser(User(
@@ -117,7 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         role: auth.user?.role,
         campus: auth.user?.campus,
         phone: auth.user?.phone,
-        course: _courseController.text.trim(),
+        course: _selectedCourse,
       ));
       Fluttertoast.showToast(msg: 'Profile updated successfully', backgroundColor: Colors.green);
     } catch (e) {
@@ -208,7 +229,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 Chip(label: Text(user?.role ?? ''), backgroundColor: AppTheme.primary.withOpacity(0.1)),
                                 const SizedBox(width: 8),
-                                Chip(label: Text(user?.campus ?? ''), backgroundColor: Colors.grey.shade200),
                               ],
                             ),
                           ],
@@ -240,7 +260,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(height: 16),
                             CustomTextField(label: 'Full Name', controller: _fullNameController),
                             const SizedBox(height: 12),
-                            CustomTextField(label: 'Course', controller: _courseController),
+                            DropdownButtonFormField<String>(
+                              initialValue: _selectedCourse,
+                              isExpanded: true,
+                              dropdownColor: Colors.white,
+                              iconEnabledColor: AppTheme.primary,
+                              style: const TextStyle(color: Color(0xFF1F2937)),
+                              decoration: const InputDecoration(
+                                labelText: 'Programme',
+                                labelStyle: TextStyle(color: Color(0xFF4B5563)),
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(),
+                              ),
+                              items: [
+                                if (_selectedCourse != null &&
+                                    !_programmes.any((programme) => programme['name'] == _selectedCourse))
+                                  DropdownMenuItem(
+                                    value: _selectedCourse,
+                                    child: Text('Current: $_selectedCourse', overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF1F2937))),
+                                  ),
+                                ..._programmes.map((programme) {
+                                  final name = programme['name'] as String;
+                                  final level = programme['level'] as String;
+                                  return DropdownMenuItem(
+                                    value: name,
+                                    child: Text('$level: $name', overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF1F2937))),
+                                  );
+                                }),
+                              ],
+                              onChanged: _programmesLoading || _programmes.isEmpty
+                                  ? null
+                                  : (value) => setState(() { _selectedCourse = value; }),
+                            ),
+                            if (_programmeLoadError != null)
+                              TextButton(onPressed: _loadProgrammes, child: Text(_programmeLoadError!)),
                             const SizedBox(height: 16),
                             CustomButton(label: 'Update Profile', isLoading: _savingProfile, onPressed: _savingProfile ? null : _updateProfile),
                           ],
@@ -284,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             Align(alignment: Alignment.centerRight, child: IconButton(icon: Icon(_newPwVisible ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() { _newPwVisible = !_newPwVisible; }))),
                             CustomTextField(label: 'Confirm New Password', controller: _confirmPasswordController, obscureText: !_confirmPwVisible),
                             Align(alignment: Alignment.centerRight, child: IconButton(icon: Icon(_confirmPwVisible ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() { _confirmPwVisible = !_confirmPwVisible; }))),
-                            Text('New password must be 6+ characters, letters and numbers only, at least one capital letter', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                            Text('At least 6 characters; letters and numbers only, with at least one capital letter and one number. For better security, choose a unique password of 12+ characters.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                             const SizedBox(height: 16),
                             CustomButton(label: 'Change Password', isLoading: _changingPassword, onPressed: _changingPassword ? null : _changePassword),
                           ],

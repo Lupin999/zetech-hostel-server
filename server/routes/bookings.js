@@ -1,15 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireRole } = require('../middleware/auth');
 const bookingService = require('../services/bookingService');
+const logger = require('../utils/logger');
+
+// Validate that a route param is a positive integer
+const validId = (id) => /^\d+$/.test(id) && Number(id) > 0;
 
 router.get('/active', authenticateToken, async (req, res) => {
     try {
         const booking = await bookingService.getActiveBooking(req.user.id);
         res.json(booking);
     } catch (error) {
-        console.log('GET ACTIVE BOOKING ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('GET ACTIVE BOOKING ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -20,11 +24,14 @@ router.get('/status', authenticateToken, async (req, res) => {
     } catch { res.json({ open: true }); }
 });
 
-router.put('/toggle', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/toggle', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
     try {
         const result = await bookingService.toggleBookings(req.body.open, req.user.id);
         res.json(result);
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) {
+        logger.error('TOGGLE BOOKINGS ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 router.post('/', authenticateToken, async (req, res) => {
@@ -33,8 +40,8 @@ router.post('/', authenticateToken, async (req, res) => {
         if (result.error) return res.status(result.status).json({ error: result.error });
         res.status(201).json(result);
     } catch (error) {
-        console.log('CREATE BOOKING ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('CREATE BOOKING ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -43,22 +50,23 @@ router.get('/my', authenticateToken, async (req, res) => {
         const bookings = await bookingService.getMyBookings(req.user.id);
         res.json(bookings);
     } catch (error) {
-        console.log('GET MY BOOKINGS ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('GET MY BOOKINGS ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
-router.get('/all', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/all', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
     try {
         const bookings = await bookingService.getAllBookings();
         res.json(bookings);
     } catch (error) {
-        console.log('GET ALL BOOKINGS ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('GET ALL BOOKINGS ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
-router.put('/:id/status', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/:id/status', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
+    if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     try {
         const { status } = req.body;
         if (!['approved', 'rejected'].includes(status)) {
@@ -70,31 +78,33 @@ router.put('/:id/status', authenticateToken, requireAdmin, async (req, res) => {
         if (result.error) return res.status(result.status).json({ error: result.error });
         res.json(result);
     } catch (error) {
-        console.log('UPDATE BOOKING STATUS ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('UPDATE BOOKING STATUS ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
-router.put('/:id/suspend', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/:id/suspend', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
+    if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     try {
         const { suspended, reason } = req.body;
         const result = await bookingService.suspendBooking(req.params.id, suspended, reason);
         if (result.error) return res.status(result.status).json({ error: result.error });
         res.json(result);
     } catch (error) {
-        console.log('SUSPEND BOOKING ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('SUSPEND BOOKING ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
 router.delete('/:id', authenticateToken, async (req, res) => {
+    if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     try {
         const result = await bookingService.cancelBooking(req.params.id, req.user.id);
         if (result.error) return res.status(result.status).json({ error: result.error });
         res.json(result);
     } catch (error) {
-        console.log('CANCEL BOOKING ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('CANCEL BOOKING ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 

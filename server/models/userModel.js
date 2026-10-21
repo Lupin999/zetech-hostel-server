@@ -1,9 +1,9 @@
 const pool = require('../config/db');
 
-const createUser = (reg_no, email, phone, full_name, password_hash, campus, role = 'student') => {
+const createUser = (reg_no, email, phone, full_name, password_hash, campus, gender = null, hostel_preference = null, role = 'student') => {
     return pool.query(
-        'INSERT INTO users (reg_no, email, phone, full_name, password_hash, role, campus) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [reg_no, email, phone || null, full_name, password_hash, role, campus]
+        'INSERT INTO users (reg_no, email, phone, full_name, password_hash, role, campus, gender, hostel_preference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [reg_no, email, phone || null, full_name, password_hash, role, campus, gender || null, hostel_preference || null]
     );
 };
 
@@ -12,7 +12,7 @@ const findByEmail = (email) => {
 };
 
 const findById = (id) => {
-    return pool.query('SELECT id, reg_no, email, phone, full_name, role, campus, course FROM users WHERE id = ?', [id]);
+    return pool.query('SELECT id, reg_no, email, phone, full_name, role, campus, gender, hostel_preference, course FROM users WHERE id = ?', [id]);
 };
 
 const findByPhone = (phone) => {

@@ -15,11 +15,9 @@ class CreateAdminScreen extends StatefulWidget {
 }
 
 class _CreateAdminScreenState extends State<CreateAdminScreen> {
-  final _regNoController = TextEditingController();
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _campusController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _adminSecretController = TextEditingController();
@@ -33,11 +31,9 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
 
   @override
   void dispose() {
-    _regNoController.dispose();
     _fullNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _campusController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _adminSecretController.dispose();
@@ -49,16 +45,13 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
   }
 
   Future<void> _handleCreateAdmin() async {
-    final regNo = _regNoController.text.trim();
     final fullName = _fullNameController.text.trim();
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
-    final campus = _campusController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
     final adminSecret = _adminSecretController.text.trim();
 
-    if (regNo.isEmpty) { setState(() { _error = 'Reg number is required'; _fieldError = 'regNo'; }); return; }
     if (fullName.isEmpty) { setState(() { _error = 'Full name is required'; _fieldError = 'fullName'; }); return; }
     if (email.isEmpty || !RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) { setState(() { _error = 'Valid email is required'; _fieldError = 'email'; }); return; }
     if (password.isEmpty || password.length < 6) { setState(() { _error = 'Password must be at least 6 characters'; _fieldError = 'password'; }); return; }
@@ -66,17 +59,14 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
     if (!RegExp(r'[A-Z]').hasMatch(password)) { setState(() { _error = 'Need at least one capital letter'; _fieldError = 'password'; }); return; }
     if (!RegExp(r'[0-9]').hasMatch(password)) { setState(() { _error = 'Need at least one number'; _fieldError = 'password'; }); return; }
     if (confirmPassword != password) { setState(() { _error = 'Passwords do not match'; _fieldError = 'confirmPassword'; }); return; }
-    if (campus.isEmpty) { setState(() { _error = 'Campus is required'; _fieldError = 'campus'; }); return; }
     if (adminSecret.isEmpty) { setState(() { _error = 'Admin secret code is required'; _fieldError = 'adminSecret'; }); return; }
 
     setState(() { _loading = true; _error = null; _fieldError = null; });
     try {
       await ApiClient.post(ApiConfig.createAdmin, body: {
-        'reg_no': regNo,
         'full_name': fullName,
         'email': email,
         'password': password,
-        'campus': campus,
         'adminSecret': adminSecret,
         if (phone.isNotEmpty) 'phone': phone,
       });
@@ -110,18 +100,22 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
                   decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
                   child: Text(_error!, style: TextStyle(color: Colors.red.shade700)),
                 ),
-              CustomTextField(label: 'Reg Number', hint: 'ADM001', controller: _regNoController, errorText: _fieldError == 'regNo' ? _error : null, onChanged: (_) => _clearError()),
-              const SizedBox(height: 16),
               CustomTextField(label: 'Full Name', controller: _fullNameController, errorText: _fieldError == 'fullName' ? _error : null, onChanged: (_) => _clearError()),
               const SizedBox(height: 16),
               CustomTextField(label: 'Email', controller: _emailController, keyboardType: TextInputType.emailAddress, errorText: _fieldError == 'email' ? _error : null, onChanged: (_) => _clearError()),
               const SizedBox(height: 16),
               CustomTextField(label: 'Phone (optional)', controller: _phoneController, keyboardType: TextInputType.number, onChanged: (_) => _clearError()),
               const SizedBox(height: 16),
-              CustomTextField(label: 'Campus', hint: 'Nairobi', controller: _campusController, errorText: _fieldError == 'campus' ? _error : null, onChanged: (_) => _clearError()),
-              const SizedBox(height: 16),
               CustomTextField(label: 'Password', controller: _passwordController, obscureText: !_passwordVisible, errorText: _fieldError == 'password' ? _error : null, onChanged: (_) => _clearError()),
               Align(alignment: Alignment.centerRight, child: IconButton(icon: Icon(_passwordVisible ? Icons.visibility_off : Icons.visibility, color: AppTheme.primary), onPressed: () => setState(() { _passwordVisible = !_passwordVisible; }))),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'At least 6 characters; use letters and numbers only, with one uppercase letter and one number. For better security, choose a unique password of 12+ characters.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+              const SizedBox(height: 12),
               CustomTextField(label: 'Confirm Password', controller: _confirmPasswordController, obscureText: !_confirmPasswordVisible, errorText: _fieldError == 'confirmPassword' ? _error : null, onChanged: (_) => _clearError()),
               Align(alignment: Alignment.centerRight, child: IconButton(icon: Icon(_confirmPasswordVisible ? Icons.visibility_off : Icons.visibility, color: AppTheme.primary), onPressed: () => setState(() { _confirmPasswordVisible = !_confirmPasswordVisible; }))),
               CustomTextField(label: 'Admin Secret Code', controller: _adminSecretController, obscureText: !_secretVisible, errorText: _fieldError == 'adminSecret' ? _error : null, onChanged: (_) => _clearError()),

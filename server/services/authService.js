@@ -3,35 +3,47 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
+const logger = require('../utils/logger');
 
 // OTP brute-force protection: max 3 wrong attempts per phone, locked 15 min
 const otpAttempts = new Map();
 const OTP_MAX_ATTEMPTS = 3;
 const OTP_LOCKOUT_MS = 15 * 60 * 1000;
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_PASSWORD }
-});
+// Create transporter lazily so missing SMTP env vars don't crash the whole
+// server at startup — they only surface an error when an email is actually sent.
+let _transporter = null;
+const getTransporter = () => {
+    if (!_transporter) {
+        _transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_PASSWORD },
+        });
+    }
+    return _transporter;
+};
 
 const formatUser = (u) => ({
     id: u.id, reg_no: u.reg_no, email: u.email, phone: u.phone,
-    full_name: u.full_name, role: u.role, campus: u.campus, course: u.course
+    full_name: u.full_name, role: u.role, campus: u.campus,
+    gender: u.gender, hostel_preference: u.hostel_preference, course: u.course
 });
 
 const createToken = (user) => {
     return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
 };
 
-const registerUser = async ({ reg_no, email, phone, full_name, password, campus }) => {
+const registerUser = async ({ reg_no, email, phone, full_name, password, gender, hostel_preference }) => {
     const hashedPassword = await bcrypt.hash(password, 10);
-    await UserModel.createUser(reg_no, email, phone, full_name, hashedPassword, campus);
+    const normalizedGender = gender === 'Female' ? 'Female' : 'Male';
+    const normalizedHostel = hostel_preference || (normalizedGender === 'Male' ? 'Boys' : 'Girls');
+    await UserModel.createUser(reg_no, email, phone, full_name, hashedPassword, 'Zetech', normalizedGender, normalizedHostel);
     return { message: 'User registered successfully' };
 };
 
-const registerAdmin = async ({ reg_no, email, full_name, password, campus, phone }) => {
+const registerAdmin = async ({ email, full_name, password, phone }) => {
     const hashedPassword = await bcrypt.hash(password, 10);
-    await UserModel.createUser(reg_no, email, phone || null, full_name, hashedPassword, campus, 'admin');
+    await UserModel.createUser(null, email, phone || null, full_name, hashedPassword, 'Zetech', null, null, 'admin');
     return { message: 'Admin account created successfully' };
 };
 
@@ -66,7 +78,7 @@ const sendOtp = async (phone) => {
     // Send OTP via email
     const maskedEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
     try {
-        await transporter.sendMail({
+        await getTransporter().sendMail({
             from: `"Zetech Hostel" <${process.env.SMTP_EMAIL}>`,
             to: user.email,
             subject: 'Your Zetech Hostel Login Code',
@@ -83,8 +95,11 @@ const sendOtp = async (phone) => {
             `
         });
     } catch (emailErr) {
-        console.log('[EMAIL ERROR]', emailErr.message);
-        console.log(`[OTP FALLBACK] Code for ${phone}: ${code}`);
+        logger.error('[EMAIL ERROR] Failed to send OTP email', { message: emailErr.message });
+        // Log the code to server console in dev so you can still test without email
+        if (process.env.NODE_ENV !== 'production') {
+            logger.info(`[OTP FALLBACK] Code for ${phone}: ${code}`);
+        }
     }
 
     return { message: `OTP sent to ${maskedEmail}`, maskedEmail };
@@ -178,7 +193,7 @@ const forgotPassword = async (email) => {
     await OtpModel.createOtp(email, code, expiresAt);
 
     try {
-        await transporter.sendMail({
+        await getTransporter().sendMail({
             from: `"Zetech Hostel" <${process.env.SMTP_EMAIL}>`,
             to: email,
             subject: 'Password Reset Code - Zetech Hostel',
@@ -195,8 +210,10 @@ const forgotPassword = async (email) => {
             `
         });
     } catch (emailErr) {
-        console.log('[EMAIL ERROR]', emailErr.message);
-        console.log(`[RESET FALLBACK] Code for ${email}: ${code}`);
+        logger.error('[EMAIL ERROR] Failed to send password reset email', { message: emailErr.message });
+        if (process.env.NODE_ENV !== 'production') {
+            logger.info(`[RESET FALLBACK] Code for ${email}: ${code}`);
+        }
     }
 
     const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');

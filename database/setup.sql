@@ -3,12 +3,14 @@ USE zetech_hostel;
 
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    reg_no VARCHAR(50) UNIQUE NOT NULL,
+    reg_no VARCHAR(50) UNIQUE NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('student', 'admin', 'accounts', 'warden') DEFAULT 'student',
     campus VARCHAR(100) NOT NULL,
+    gender ENUM('Male', 'Female') NULL,
+    hostel_preference ENUM('Boys', 'Girls') NULL,
     course VARCHAR(100) NULL,
     phone VARCHAR(20) UNIQUE NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

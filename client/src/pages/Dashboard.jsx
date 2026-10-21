@@ -19,7 +19,7 @@ import useBookings from '../hooks/useBookings';
 import useNotices from '../hooks/useNotices';
 import usePayments from '../hooks/usePayments';
 import { formatDate, getTodayName } from '../utils/helpers';
-import { MENU_DATA, ASSETS_URL } from '../utils/constants';
+import { MENU_DATA, ASSETS_URL, CURRENT_SEMESTER } from '../utils/constants';
 import dImg from '../d.jpg';
 
 const todayName = getTodayName();
@@ -40,7 +40,8 @@ export default function Dashboard() {
     const [loadingData, setLoadingData] = useState(true);
     const [stats, setStats] = useState({ bookings: 0, paid: 0, unpaid: 0 });
     const [roomSearch, setRoomSearch] = useState('');
-    const [hostelTab, setHostelTab] = useState('Boys');
+    const assignedHostel = user?.hostel_preference || 'Boys';
+    const [hostelTab, setHostelTab] = useState(assignedHostel);
 
     const [selectedRoom, setSelectedRoom] = useState(null);
     const [beds, setBeds] = useState([]);
@@ -56,7 +57,7 @@ export default function Dashboard() {
     const fetchAll = () => {
         fetchActive();
         fetchStatus();
-        setLoadingData(false);
+        // loadingData is managed by the bookings useEffect above — no need to set it here
     };
 
     useEffect(() => {
@@ -64,14 +65,38 @@ export default function Dashboard() {
     }, [notices]);
 
     useEffect(() => {
+        if (user?.hostel_preference) setHostelTab(user.hostel_preference);
+    }, [user?.hostel_preference]);
+
+    const hostelTheme = assignedHostel === 'Girls'
+        ? {
+            main: '#be185d',
+            soft: '#fdf2f8',
+            dark: '#831843',
+            glow: 'rgba(190, 24, 93, 0.18)',
+            label: 'Girls Hostel'
+        }
+        : {
+            main: '#1a237e',
+            soft: '#eef2ff',
+            dark: '#0f172a',
+            glow: 'rgba(26, 35, 126, 0.18)',
+            label: 'Boys Hostel'
+        };
+
+    useEffect(() => {
         if (user?.role === 'student') {
             api.get('/bookings/my').then(bRes => {
                 const bookings = bRes.data;
-                const paid = payments.filter(p => p.status === 'confirmed').length;
-                const approved = bookings.filter(b => b.status === 'approved').length;
-                setStats({ bookings: bookings.length, paid, unpaid: approved - paid });
-            }).catch(() => {});
-            setLoadingData(false);
+                // Count confirmed payments for the current approved booking only
+                const approvedBooking = bookings.find(b => b.status === 'approved');
+                const paidForApproved = approvedBooking
+                    ? payments.filter(p => p.booking_id === approvedBooking.id && p.status === 'confirmed').length
+                    : 0;
+                const unpaid = approvedBooking && paidForApproved === 0 ? 1 : 0;
+                setStats({ bookings: bookings.length, paid: paidForApproved, unpaid });
+                setLoadingData(false);
+            }).catch(() => { setLoadingData(false); });
         } else { setLoadingData(false); }
     }, [user, payments]);
 
@@ -90,7 +115,7 @@ export default function Dashboard() {
         if (!arrivalDate) return toast.error('Select arrival date');
         setSubmitting(true);
         try {
-            await api.post('/bookings', { room_id: selectedRoom.id, bed_id: selectedBed.id, semester: 'Jan-Apr 2026', arrival_date: arrivalDate });
+            await api.post('/bookings', { room_id: selectedRoom.id, bed_id: selectedBed.id, semester: CURRENT_SEMESTER, arrival_date: arrivalDate });
             setDialogOpen(false); fetchAll();
             Swal.fire({ icon: 'success', title: 'Booking Submitted!', text: `Room ${selectedRoom.room_number} Bed ${selectedBed.bed_number} (${selectedBed.position}) booked. Awaiting admin approval.`, confirmButtonColor: '#1a237e' });
         } catch (err) {
@@ -102,21 +127,22 @@ export default function Dashboard() {
     const girlsRooms = rooms.filter(r => r.hostel === 'Girls');
     const boysAvail = boysRooms.filter(r => r.occupied < r.capacity).length;
     const girlsAvail = girlsRooms.filter(r => r.occupied < r.capacity).length;
-    const filteredRooms = rooms.filter(r => r.hostel === hostelTab && (r.room_number.includes(roomSearch) || r.hostel.toLowerCase().includes(roomSearch.toLowerCase())));
+    const activeHostel = user?.hostel_preference || hostelTab;
+    const filteredRooms = rooms.filter(r => r.hostel === activeHostel && (r.room_number.includes(roomSearch) || r.hostel.toLowerCase().includes(roomSearch.toLowerCase())));
 
     return (
         <>
             {/* Welcome Banner */}
             <Box sx={{ position: 'relative', borderRadius: 3, overflow: 'hidden', mb: 3, height: { xs: 180, md: 240 }, display: 'flex', alignItems: 'center' }}>
                 <Box sx={{ position: 'absolute', inset: 0, backgroundImage: `url(${dImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-                <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(13,27,42,0.85), rgba(26,35,126,0.7))' }} />
-                <Box sx={{ position: 'absolute', inset: 0, m: { xs: 2, md: 4 }, borderRadius: 2, backdropFilter: 'blur(16px)', bgcolor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', justifyContent: 'center', px: { xs: 3, md: 5 } }}>
+                <Box sx={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${hostelTheme.dark}, ${hostelTheme.main})` }} />
+                <Box sx={{ position: 'absolute', inset: 0, m: { xs: 2, md: 4 }, borderRadius: 2, backdropFilter: 'blur(16px)', bgcolor: hostelTheme.glow, border: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', justifyContent: 'center', px: { xs: 3, md: 5 } }}>
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-                        <Typography variant="h5" sx={{ color: '#FFD700', fontWeight: 700, mb: 1 }}>Thanks for Choosing Zetech Hostel</Typography>
+                        <Typography variant="h5" sx={{ color: '#FFD700', fontWeight: 700, mb: 1 }}>Welcome to {hostelTheme.label}</Typography>
                     </motion.div>
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}>
                         <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700 }}>{user?.full_name}</Typography>
-                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.8)', mt: 0.5 }}>{user?.reg_no} • {user?.campus}</Typography>
+                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.8)', mt: 0.5 }}>{user?.reg_no} • {hostelTheme.label}</Typography>
                     </motion.div>
                 </Box>
             </Box>
@@ -221,13 +247,28 @@ export default function Dashboard() {
 
                     {/* Boys / Girls Toggle */}
                     <Box sx={{ display: 'flex', gap: 1, mb: 2.5 }}>
-                        <Button variant={hostelTab === 'Boys' ? 'contained' : 'outlined'} onClick={() => setHostelTab('Boys')} sx={{ flex: 1, py: 1.2 }}>
+                        <Button
+                            variant={activeHostel === 'Boys' ? 'contained' : 'outlined'}
+                            onClick={() => !user?.hostel_preference && setHostelTab('Boys')}
+                            disabled={!!user?.hostel_preference && user.hostel_preference !== 'Boys'}
+                            sx={{ flex: 1, py: 1.2, bgcolor: activeHostel === 'Boys' ? '#1a237e' : undefined }}>
                             🏠 Boys Hostel ({boysAvail}/{boysRooms.length} free)
                         </Button>
-                        <Button variant={hostelTab === 'Girls' ? 'contained' : 'outlined'} onClick={() => setHostelTab('Girls')} sx={{ flex: 1, py: 1.2 }} color="secondary">
+                        <Button
+                            variant={activeHostel === 'Girls' ? 'contained' : 'outlined'}
+                            onClick={() => !user?.hostel_preference && setHostelTab('Girls')}
+                            disabled={!!user?.hostel_preference && user.hostel_preference !== 'Girls'}
+                            sx={{ flex: 1, py: 1.2, bgcolor: activeHostel === 'Girls' ? '#be185d' : undefined }}
+                            color="secondary">
                             🏠 Girls Hostel ({girlsAvail}/{girlsRooms.length} free)
                         </Button>
                     </Box>
+
+                    {user?.hostel_preference && (
+                        <Alert severity="info" sx={{ mb: 2, bgcolor: activeHostel === 'Girls' ? '#fdf2f8' : '#eef2ff' }}>
+                            Your assigned hostel is <b>{activeHostel}</b>. This view is locked to your hostel for privacy and separation.
+                        </Alert>
+                    )}
 
                     <Grid container spacing={2}>
                         {filteredRooms.map(room => (

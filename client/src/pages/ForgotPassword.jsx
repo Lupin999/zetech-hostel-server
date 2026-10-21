@@ -105,7 +105,7 @@ export default function ForgotPassword() {
                                 onFocus={() => setPwFocused(true)} onBlur={() => setPwFocused(false)} />
                             {pwFocused && (
                                 <Typography variant="caption" sx={{ color: '#888', display: 'block', mb: 2, ml: 0.5 }}>
-                                    Must be 6+ characters, letters & numbers only, at least 1 capital letter
+                                    At least 6 characters; letters and numbers only, with at least 1 capital letter and 1 number. For better security, choose a unique password of 12+ characters.
                                 </Typography>
                             )}
                             <TextField placeholder="Confirm password" type="password" fullWidth

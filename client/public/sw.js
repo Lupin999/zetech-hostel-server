@@ -1,6 +1,6 @@
 const CACHE_NAME = 'zetech-hostel-v3';
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
     self.skipWaiting();
 });
 

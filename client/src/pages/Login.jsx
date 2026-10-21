@@ -3,8 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     Card, CardContent, TextField, Button, Typography, Alert, CircularProgress,
-    Tabs, Tab, Box, MenuItem, Select
+    Tabs, Tab, Box, MenuItem, Select, InputAdornment, IconButton
 } from '@mui/material';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import AuthLayout from '../components/AuthLayout';
 import { COUNTRY_CODES } from '../utils/constants';
@@ -24,6 +25,7 @@ export default function Login() {
     const [fieldError, setFieldError] = useState('');
     const [loading, setLoading] = useState(false);
     const [pwFocused, setPwFocused] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const { login, sendOtp, verifyOtp } = useAuth();
     const navigate = useNavigate();
 
@@ -54,12 +56,12 @@ export default function Login() {
         if (v) { setError(v.error); setFieldError(v.field); return; }
         setLoading(true);
         try {
-            await login(email, password);
+            const user = await login(email, password, { adminOnly: tab === 2 });
             toast.success('Login successful!');
-            navigate('/dashboard');
+            navigate(['admin', 'accounts', 'warden'].includes(user?.role) ? '/admin' : '/dashboard', { replace: true });
         } catch (err) {
             const data = err.response?.data;
-            setError(data?.error || 'Login failed');
+            setError(data?.error || err.message || 'Login failed');
             setFieldError(data?.field || '');
         } finally { setLoading(false); }
     };
@@ -89,9 +91,9 @@ export default function Login() {
         setLoading(true);
         try {
             const fullPhone = countryCode + phoneNumber.replace(/^0+/, '');
-            await verifyOtp(fullPhone, otp);
+            const user = await verifyOtp(fullPhone, otp);
             toast.success('Login successful!');
-            navigate('/dashboard');
+            navigate(['admin', 'accounts', 'warden'].includes(user?.role) ? '/admin' : '/dashboard', { replace: true });
         } catch (err) {
             const data = err.response?.data;
             setError(data?.error || 'Verification failed');
@@ -109,29 +111,45 @@ export default function Login() {
                     <Tabs value={tab} onChange={(_, v) => { setTab(v); setError(''); setFieldError(''); setOtpSent(false); }} centered sx={{ mb: 3 }}>
                         <Tab label="Email" />
                         <Tab label="Phone" />
+                        <Tab label="Admin" />
                     </Tabs>
 
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-                    {tab === 0 && (
+                    {(tab === 0 || tab === 2) && (
                         <form onSubmit={handleEmailLogin}>
                             <TextField placeholder="Email" type="email" fullWidth required
                                 sx={inputSx} value={email} onChange={e => { setEmail(e.target.value); if (fieldError === 'email') { setError(''); setFieldError(''); } }}
                                 error={fieldError === 'email'}
                                 inputProps={{ autoComplete: 'email' }} name="email" />
-                            <TextField placeholder="Password" type="password" fullWidth required
+                            <TextField placeholder="Password" type={showPassword ? 'text' : 'password'} fullWidth required
                                 sx={{ ...inputSx, mb: pwFocused ? 0.5 : 3.5 }} value={password}
                                 onChange={e => { setPassword(e.target.value); if (fieldError === 'password') { setError(''); setFieldError(''); } }}
                                 onFocus={() => setPwFocused(true)} onBlur={() => setPwFocused(false)}
                                 error={fieldError === 'password'}
-                                inputProps={{ autoComplete: 'current-password' }} name="password" />
+                                inputProps={{ autoComplete: 'current-password' }} name="password"
+                                InputProps={{
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <IconButton
+                                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                                onClick={() => setShowPassword((prev) => !prev)}
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                edge="end"
+                                                sx={{ color: '#1a237e' }}
+                                            >
+                                                {showPassword ? <VisibilityOff /> : <Visibility />}
+                                            </IconButton>
+                                        </InputAdornment>
+                                    )
+                                }} />
                             {pwFocused && (
                                 <Typography variant="caption" sx={{ color: '#888', display: 'block', mb: 3, ml: 0.5 }}>
                                     Must be 6+ characters, letters & numbers only, at least 1 capital letter
                                 </Typography>
                             )}
                             <Button type="submit" variant="contained" fullWidth size="large" disabled={loading} sx={{ mb: 2, py: 1.5 }}>
-                                {loading ? <CircularProgress size={24} /> : 'Login'}
+                                {loading ? <CircularProgress size={24} /> : tab === 2 ? 'Admin Login' : 'Login'}
                             </Button>
                         </form>
                     )}
@@ -188,6 +206,9 @@ export default function Login() {
 
                     <Typography variant="body2" align="center" sx={{ color: '#666' }}>
                         No account? <Link to="/register" style={{ fontWeight: 600, color: '#1a237e' }}>Register</Link>
+                    </Typography>
+                    <Typography variant="body2" align="center" sx={{ color: '#666', mt: 1 }}>
+                        admin account? <Link to="/create-admin" style={{ fontWeight: 600, color: '#1a237e' }}>Register as admin</Link>
                     </Typography>
                     <Typography variant="body2" align="center" sx={{ color: '#666', mt: 1 }}>
                         <Link to="/forgot-password" style={{ color: '#e53935' }}>Forgot password?</Link>

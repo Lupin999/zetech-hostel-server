@@ -7,9 +7,7 @@ const sendNotification = async (userId, message, type = 'general') => {
 
 const sendToRole = async (roles, message, type = 'general') => {
     const [users] = await UserModel.findByRole(...roles);
-    for (const u of users) {
-        await NotificationModel.createNotification(u.id, message, type);
-    }
+    await Promise.all(users.map(u => NotificationModel.createNotification(u.id, message, type)));
 };
 
 const getNotifications = async (userId) => {

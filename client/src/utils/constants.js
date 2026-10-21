@@ -3,6 +3,17 @@ export const ASSETS_URL = import.meta.env.VITE_ASSETS_URL || 'http://localhost:5
 
 export const BOOKING_FEE = 30000;
 export const MIN_DEPOSIT = 12000;
+export const SCHOOL_PAYBILL = '303072';
+
+// Current active booking semester — update this each semester
+export const CURRENT_SEMESTER = 'Jan-Apr 2026';
+
+// All selectable semesters shown in the booking form
+export const SEMESTERS = [
+    'Jan-Apr 2026',
+    'May-Aug 2026',
+    'Sep-Dec 2026',
+];
 
 export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

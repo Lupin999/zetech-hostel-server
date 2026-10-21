@@ -1,10 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const programmes = require('../data/programmes');
 
 // Public ping — used by keep-alive cron, no auth required
 router.get('/ping', (req, res) => {
     res.json({ ok: true, ts: Date.now() });
+});
+
+router.get('/programmes', (req, res) => {
+    res.json(programmes);
 });
 
 // API status check
@@ -32,11 +37,17 @@ router.get('/docs', (req, res) => {
         baseUrl: '/api',
         authentication: 'Bearer token in Authorization header',
         endpoints: {
+            programmes: {
+                'GET /api/programmes': {
+                    description: 'Get the Zetech programme options used for student registration and profiles',
+                    response: '[array of programme objects with level, code, and name]'
+                }
+            },
             auth: {
                 'POST /api/auth/register': {
                     description: 'Register a new student account',
-                    body: { reg_no: 'string (required)', email: 'string (required)', full_name: 'string (required)', password: 'string (min 6, alphanumeric, 1 capital)', campus: 'string (required)', phone: 'string (optional, with country code e.g. +254712345678)' },
-                    response: { message: 'User registered successfully' }
+                    body: { reg_no: 'CODE-00-0000/YYYY (code must match selected course)', email: 'string (required)', full_name: 'string (required)', course: 'Zetech programme (required)', password: 'string (min 6, alphanumeric, 1 capital)', phone: 'string (optional, with country code e.g. +254712345678)' },
+                    response: { message: 'User registered successfully', token: 'JWT token', user: 'Registered student profile' }
                 },
                 'POST /api/auth/login': {
                     description: 'Login with email and password',
@@ -72,7 +83,7 @@ router.get('/docs', (req, res) => {
                 },
                 'POST /api/auth/create-admin': {
                     description: 'Create admin account (requires admin secret)',
-                    body: { reg_no: 'string', email: 'string', full_name: 'string', password: 'string', campus: 'string', adminSecret: 'string' },
+                    body: { email: 'string (required)', full_name: 'string (required)', password: 'string (min 6)', phone: 'string (optional)', adminSecret: 'string (required)' },
                     response: { message: 'Admin account created successfully' }
                 }
             },
@@ -227,6 +238,22 @@ router.get('/docs', (req, res) => {
                     body: { medical_conditions: 'string', dietary_restrictions: 'string' },
                     response: { message: 'Health profile saved' }
                 }
+            },
+            operations: {
+                description: 'Resident lifecycle, maintenance, visitor, finance reporting, refund, student administration, and audit workflows',
+                basePath: '/api/operations',
+                endpoints: [
+                    'GET /students (admin)', 'PATCH /students/:id/role (admin)',
+                    'GET /stays (admin/warden)', 'PUT /stays/:id/check-in (admin/warden)',
+                    'PUT /stays/:id/check-out (admin/warden)', 'PUT /stays/:id/dates (admin/warden)',
+                    'GET|POST /requests (student scoped)', 'PATCH /requests/:id (admin/warden)',
+                    'GET|POST /visitors (student scoped)', 'PATCH /visitors/:id/status (admin/warden)',
+                    'GET|POST /inspections (admin/warden)', 'PATCH /rooms/:id/status (admin/warden)',
+                    'GET|POST /refunds (student scoped)', 'PATCH /refunds/:id/review (admin/accounts)',
+                    'PATCH /refunds/:id/process (admin/accounts)',
+                    'GET /payments/:id/receipt (owner or staff)', 'GET /balances (owner or staff)',
+                    'GET /reports (admin/accounts)', 'GET /audit (admin)',
+                ]
             }
         }
     };

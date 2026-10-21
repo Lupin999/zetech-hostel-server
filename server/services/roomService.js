@@ -2,12 +2,16 @@ const RoomModel = require('../models/roomModel');
 
 const getRooms = async () => {
     const [rooms] = await RoomModel.getAllRooms();
+    // Run ensureRoomBeds concurrently instead of sequentially to avoid N×DB-queries per request
+    await Promise.all(rooms.map(room => RoomModel.ensureRoomBeds(room.id, room.capacity || 4)));
     return rooms;
 };
 
 const getRoom = async (id) => {
     const [rooms] = await RoomModel.getRoomById(id);
-    return rooms[0] || null;
+    if (!rooms[0]) return null;
+    await RoomModel.ensureRoomBeds(rooms[0].id, rooms[0].capacity || 4);
+    return rooms[0];
 };
 
 const getBeds = async (roomId) => {

@@ -19,6 +19,8 @@ import Menu from './pages/Menu';
 import AdminDashboard from './pages/AdminDashboard';
 import CreateAdmin from './pages/CreateAdmin';
 import ForgotPassword from './pages/ForgotPassword';
+import StudentServices from './pages/StudentServices';
+import OperationsDashboard from './pages/OperationsDashboard';
 
 function Loading() {
     return (
@@ -36,11 +38,17 @@ function ProtectedRoute({ children }) {
     return user ? <Layout><PageTransition>{children}</PageTransition></Layout> : <Navigate to="/login" />;
 }
 
-function AdminRoute({ children }) {
+function AdminRoute({ children, allowAccounts = false }) {
     const { user, loading } = useAuth();
     if (loading) return <Loading />;
     if (!user) return <Navigate to="/login" />;
+    if (user.role === 'accounts' && !allowAccounts) return <Navigate to="/operations" replace />;
     return ['admin', 'accounts', 'warden'].includes(user.role) ? <Layout><PageTransition>{children}</PageTransition></Layout> : <Navigate to="/dashboard" />;
+}
+
+function getUserHomePath(user) {
+    if (user?.role === 'accounts') return '/operations';
+    return ['admin', 'accounts', 'warden'].includes(user?.role) ? '/admin' : '/dashboard';
 }
 
 function AppRoutes({ showSplash, onSplashDone }) {
@@ -53,18 +61,20 @@ function AppRoutes({ showSplash, onSplashDone }) {
             {showSplash && <SplashScreen onComplete={onSplashDone} />}
             <AnimatePresence mode="wait">
                 <Routes location={location} key={location.pathname}>
-                    <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <PageTransition><Login /></PageTransition>} />
-                    <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <PageTransition><Register /></PageTransition>} />
-                    <Route path="/create-admin" element={user ? <Navigate to="/dashboard" /> : <PageTransition><CreateAdmin /></PageTransition>} />
-                    <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" /> : <PageTransition><ForgotPassword /></PageTransition>} />
+                    <Route path="/login" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><Login /></PageTransition>} />
+                    <Route path="/register" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><Register /></PageTransition>} />
+                    <Route path="/create-admin" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><CreateAdmin /></PageTransition>} />
+                    <Route path="/forgot-password" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><ForgotPassword /></PageTransition>} />
                     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
                     <Route path="/my-bookings" element={<ProtectedRoute><MyBookings /></ProtectedRoute>} />
                     <Route path="/notices" element={<ProtectedRoute><Notices /></ProtectedRoute>} />
                     <Route path="/menu" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
+                    <Route path="/services" element={<ProtectedRoute><StudentServices /></ProtectedRoute>} />
                     <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-                    <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
+                    <Route path="/operations" element={<AdminRoute allowAccounts><OperationsDashboard /></AdminRoute>} />
+                    <Route path="*" element={<Navigate to={user ? getUserHomePath(user) : "/login"} replace />} />
                 </Routes>
             </AnimatePresence>
         </>

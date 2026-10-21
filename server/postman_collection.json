@@ -24,7 +24,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reg_no\": \"SIT/B/01/001\",\n  \"email\": \"student@zetech.ac.ke\",\n  \"full_name\": \"John Doe\",\n  \"password\": \"Hello123\",\n  \"campus\": \"Main\",\n  \"phone\": \"+254712345678\"\n}"
+              "raw": "{\n  \"reg_no\": \"BBIT-01-0046/2024\",\n  \"email\": \"student@zetech.ac.ke\",\n  \"full_name\": \"John Doe\",\n  \"course\": \"Bachelor of Business Information Technology (BBIT)\",\n  \"password\": \"Hello123\",\n  \"phone\": \"+254712345678\"\n}"
             }
           }
         },

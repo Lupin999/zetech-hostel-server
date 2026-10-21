@@ -4,6 +4,7 @@ import 'config/app_theme.dart';
 import 'config/app_routes.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
+import 'widgets/common/connection_status_banner.dart';
 
 void main() {
   runApp(
@@ -30,6 +31,8 @@ class MyApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
       routerConfig: AppRoutes.router,
+      builder: (context, child) =>
+          ConnectionStatusBanner(child: child ?? const SizedBox.shrink()),
     );
   }
 }

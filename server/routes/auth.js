@@ -6,13 +6,33 @@ const { body, validationResult } = require('express-validator');
 const pool = require('../config/db');
 const authService = require('../services/authService');
 const { authenticateToken } = require('../middleware/auth');
+const logger = require('../utils/logger');
+const programmes = require('../data/programmes');
 
 const registerValidation = [
-    body('reg_no').trim().notEmpty().withMessage('Reg number is required'),
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('full_name').trim().notEmpty().withMessage('Full name is required'),
+    body('course').trim().notEmpty().withMessage('Programme is required')
+        .bail().isIn(programmes.map(programme => programme.name)).withMessage('Select a valid Zetech programme'),
+    body('reg_no').exists({ checkFalsy: true }).withMessage('Reg number is required')
+        .bail().isString().withMessage('Reg number must be text')
+        .bail().trim().custom((value, { req }) => {
+            const match = /^([A-Z]{2,10})-(\d{2})-(\d{4})\/(\d{4})$/i.exec(value);
+            if (!match) throw new Error('Reg number must follow CODE-00-0000/YYYY');
+            const programme = programmes.find(item => item.name === req.body.course);
+            if (!programme || match[1].toUpperCase() !== programme.code) {
+                throw new Error('Reg number code must match the selected programme');
+            }
+            return true;
+        }),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('gender').optional().isIn(['Male', 'Female']).withMessage('Gender must be Male or Female'),
+];
+
+const adminRegistrationValidation = [
     body('email').isEmail().withMessage('Valid email is required'),
     body('full_name').trim().notEmpty().withMessage('Full name is required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-    body('campus').trim().notEmpty().withMessage('Campus is required'),
 ];
 
 // Register
@@ -20,20 +40,36 @@ router.post('/register', registerValidation, async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
     try {
-        const { reg_no, email, full_name, password, campus, phone } = req.body;
+        const { email, full_name, password, phone, gender, hostel_preference, course } = req.body;
+        const reg_no = req.body.reg_no.trim().toUpperCase();
+        const normalizedGender = gender === 'Female' ? 'Female' : 'Male';
+        const normalizedHostel = hostel_preference || (normalizedGender === 'Male' ? 'Boys' : 'Girls');
         const hashedPassword = await bcrypt.hash(password, 10);
-        await pool.query(
-            'INSERT INTO users (reg_no, email, phone, full_name, password_hash, campus) VALUES (?, ?, ?, ?, ?, ?)',
-            [reg_no, email, phone || null, full_name, hashedPassword, campus]
+        const [result] = await pool.query(
+            'INSERT INTO users (reg_no, email, phone, full_name, password_hash, campus, gender, hostel_preference, course) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [reg_no, email, phone || null, full_name, hashedPassword, 'Zetech', normalizedGender, normalizedHostel, course?.trim() || null]
         );
-        res.status(201).json({ message: 'User registered successfully' });
+        const user = {
+            id: result.insertId,
+            reg_no,
+            email,
+            phone: phone || null,
+            full_name,
+            role: 'student',
+            campus: 'Zetech',
+            gender: normalizedGender,
+            hostel_preference: normalizedHostel,
+            course: course?.trim() || null,
+        };
+        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+        res.status(201).json({ message: 'User registered successfully', token, user });
     } catch (error) {
-        console.log('REGISTER ERROR:', error);
+        logger.error('REGISTER ERROR', { message: error.message });
         if (error.code === 'ER_DUP_ENTRY') {
             if (error.message.includes('phone')) return res.status(400).json({ error: 'Phone number already registered' });
             return res.status(400).json({ error: 'User already exists' });
         }
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -45,16 +81,8 @@ router.post('/login', async (req, res) => {
         if (!email || !email.trim()) return res.status(400).json({ error: 'Email is required', field: 'email' });
         if (!/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Please enter a valid email address', field: 'email' });
         if (!password) return res.status(400).json({ error: 'Password is required', field: 'password' });
-        if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters', field: 'password' });
-        if (!/^[a-zA-Z0-9]+$/.test(password)) {
-            return res.status(400).json({ error: 'Password must contain only letters and numbers', field: 'password' });
-        }
-        if (!/[A-Z]/.test(password)) {
-            return res.status(400).json({ error: 'Password must contain at least one capital letter', field: 'password' });
-        }
-        if (!/[0-9]/.test(password)) {
-            return res.status(400).json({ error: 'Password must contain at least one number', field: 'password' });
-        }
+        // NOTE: do NOT validate password format at login — only at registration.
+        // Users may have set passwords before any format rules existed.
 
         const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
         if (!users.length) return res.status(401).json({ error: 'No account found with this email', field: 'email' });
@@ -64,10 +92,10 @@ router.post('/login', async (req, res) => {
         if (!validPassword) return res.status(401).json({ error: 'Incorrect password', field: 'password' });
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token, user: { id: user.id, reg_no: user.reg_no, email: user.email, phone: user.phone, full_name: user.full_name, role: user.role, campus: user.campus, course: user.course } });
+        res.json({ token, user: { id: user.id, reg_no: user.reg_no, email: user.email, phone: user.phone, full_name: user.full_name, role: user.role, campus: user.campus, gender: user.gender, hostel_preference: user.hostel_preference, course: user.course } });
     } catch (error) {
-        console.log('LOGIN ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('LOGIN ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -85,8 +113,8 @@ router.post('/send-otp', async (req, res) => {
         if (result.error) return res.status(result.status || 400).json({ error: result.error, field: result.field });
         res.json(result);
     } catch (error) {
-        console.log('SEND OTP ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('SEND OTP ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -100,8 +128,8 @@ router.post('/verify-otp', async (req, res) => {
         if (result.error) return res.status(result.status || 400).json({ error: result.error, field: result.field });
         res.json(result);
     } catch (error) {
-        console.log('VERIFY OTP ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('VERIFY OTP ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -112,28 +140,62 @@ router.post('/verify-otp', async (req, res) => {
 router.get('/verify', authenticateToken, async (req, res) => {
     try {
         const [users] = await pool.query(
-            'SELECT id, reg_no, email, phone, full_name, role, campus, course FROM users WHERE id = ?',
+            'SELECT id, reg_no, email, phone, full_name, role, campus, gender, hostel_preference, course FROM users WHERE id = ?',
             [req.user.id]
         );
         if (!users.length) return res.status(401).json({ error: 'User not found' });
         res.json({ user: users[0] });
     } catch (error) {
-        console.log('VERIFY ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('VERIFY ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
-// Update profile (name, course)
+// Update profile (name, course, email, phone)
 router.put('/profile/info', authenticateToken, async (req, res) => {
     try {
-        const { full_name, course } = req.body;
+        const { full_name, course, email, phone } = req.body;
         if (!full_name?.trim()) return res.status(400).json({ error: 'Name is required' });
-        await pool.query('UPDATE users SET full_name = ?, course = ? WHERE id = ?', [full_name.trim(), course?.trim() || null, req.user.id]);
-        const [users] = await pool.query('SELECT id, reg_no, email, phone, full_name, role, campus, course FROM users WHERE id = ?', [req.user.id]);
+
+        // Validate email format if provided
+        if (email?.trim() && !/\S+@\S+\.\S+/.test(email.trim())) {
+            return res.status(400).json({ error: 'Please enter a valid email address' });
+        }
+
+        // Validate phone format if provided
+        if (phone?.trim()) {
+            const digitsOnly = phone.trim().replace(/\D/g, '');
+            if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+                return res.status(400).json({ error: 'Phone number must be 10–15 digits' });
+            }
+        }
+
+        // Check email uniqueness (excluding current user)
+        if (email?.trim()) {
+            const [existing] = await pool.query('SELECT id FROM users WHERE email = ? AND id != ?', [email.trim(), req.user.id]);
+            if (existing.length) return res.status(400).json({ error: 'Email already used by another account' });
+        }
+
+        // Check phone uniqueness (excluding current user)
+        if (phone?.trim()) {
+            const [existing] = await pool.query('SELECT id FROM users WHERE phone = ? AND id != ?', [phone.trim(), req.user.id]);
+            if (existing.length) return res.status(400).json({ error: 'Phone number already used by another account' });
+        }
+
+        await pool.query(
+            'UPDATE users SET full_name = ?, course = ?, email = COALESCE(NULLIF(?, \'\'), email), phone = COALESCE(NULLIF(?, \'\'), phone) WHERE id = ?',
+            [full_name.trim(), course?.trim() || null, email?.trim() || '', phone?.trim() || '', req.user.id]
+        );
+
+        const [users] = await pool.query(
+            'SELECT id, reg_no, email, phone, full_name, role, campus, gender, hostel_preference, course FROM users WHERE id = ?',
+            [req.user.id]
+        );
         res.json({ message: 'Profile updated', user: users[0] });
     } catch (error) {
         console.log('UPDATE PROFILE ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        if (error.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Email or phone already in use' });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -154,8 +216,8 @@ router.put('/profile', authenticateToken, async (req, res) => {
         await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [hashed, req.user.id]);
         res.json({ message: 'Password updated successfully' });
     } catch (error) {
-        console.log('CHANGE PASSWORD ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('CHANGE PASSWORD ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -168,8 +230,8 @@ router.post('/forgot-password', async (req, res) => {
         if (result.error) return res.status(result.status || 400).json({ error: result.error });
         res.json(result);
     } catch (error) {
-        console.log('FORGOT PASSWORD ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('FORGOT PASSWORD ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -183,29 +245,29 @@ router.post('/reset-password', async (req, res) => {
         if (result.error) return res.status(result.status || 400).json({ error: result.error });
         res.json(result);
     } catch (error) {
-        console.log('RESET PASSWORD ERROR:', error);
-        res.status(500).json({ error: error.message || 'Server error' });
+        logger.error('RESET PASSWORD ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
 // Create admin (secret code required)
-router.post('/create-admin', registerValidation, async (req, res) => {
+router.post('/create-admin', adminRegistrationValidation, async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
-    const { reg_no, email, full_name, password, campus, adminSecret } = req.body;
+    const { email, full_name, password, phone, adminSecret } = req.body;
     if (!adminSecret || adminSecret !== process.env.ADMIN_SECRET) {
         return res.status(403).json({ error: 'Invalid admin secret code' });
     }
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         await pool.query(
-            'INSERT INTO users (reg_no, email, full_name, password_hash, role, campus) VALUES (?, ?, ?, ?, ?, ?)',
-            [reg_no, email, full_name, hashedPassword, 'admin', campus]
+            'INSERT INTO users (email, phone, full_name, password_hash, role, campus) VALUES (?, ?, ?, ?, ?, ?)',
+            [email, phone || null, full_name, hashedPassword, 'admin', 'Zetech']
         );
         res.status(201).json({ message: 'Admin account created successfully' });
     } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'User already exists' });
-        res.status(500).json({ error: error.message || 'Server error' });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
