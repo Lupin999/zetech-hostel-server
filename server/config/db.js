@@ -14,7 +14,12 @@ const pool = mysql.createPool({
     // Production connections use verified TLS by default. Local development
     // can opt in with DB_SSL=true; DB_SSL=false explicitly disables TLS.
     ssl: sslEnabled
-        ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
+        ? {
+            ...(process.env.DB_SSL_CA
+                ? { ca: process.env.DB_SSL_CA.replace(/\\n/g, '\n') }
+                : {}),
+            rejectUnauthorized: true,
+        }
         : false,
 });
 
