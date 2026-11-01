@@ -76,7 +76,7 @@ router.post('/periods', authenticateToken, allowRoles('admin'),
     body('hostel').isIn(['Boys', 'Girls']),
     body('semester').trim().isLength({ min: 1, max: 80 }),
     body('opens_on').isISO8601({ strict: true }),
-    body('duration_months').isInt({ min: 1, max: 12 }),
+    body('duration_months').isInt({ min: 1, max: 4 }).withMessage('Duration must be between 1 and 4 months'),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.createPeriod(req.user.id, {
         ...req.body,

@@ -135,6 +135,29 @@ test('students without a checked-in stay receive an empty current-stay result', 
     assert.deepEqual(await service.getStudentCurrentStay(7), { stay: null });
 });
 
+test('stay dates cannot exceed four months', async () => {
+    model.updateStayDates = () => assert.fail('invalid stay dates must not be saved');
+
+    const result = await service.updateStayDates(7, 31, '2026-01-31', '2026-06-01');
+
+    assert.equal(result.status, 400);
+    assert.match(result.error, /4 months/);
+});
+
+test('stay dates may span exactly four months', async () => {
+    let updatedDates;
+    model.updateStayDates = async (...dates) => {
+        updatedDates = dates;
+        return [{ affectedRows: 1 }];
+    };
+    model.writeAuditLog = async () => [];
+
+    const result = await service.updateStayDates(7, 31, '2026-01-31', '2026-05-31');
+
+    assert.equal(result.message, 'Stay dates updated');
+    assert.deepEqual(updatedDates, [31, '2026-01-31', '2026-05-31']);
+});
+
 test('period closing dates clamp to the final day of the target month', async () => {
     let savedPeriod;
     model.createPeriod = async period => {
@@ -153,6 +176,21 @@ test('period closing dates clamp to the final day of the target month', async ()
 
     assert.equal(savedPeriod.closesOn, '2024-02-29');
     assert.equal(result.closes_on, '2024-02-29');
+});
+
+test('hostel periods cannot exceed four months', async () => {
+    model.createPeriod = () => assert.fail('invalid hostel period must not be created');
+
+    const result = await service.createPeriod(7, {
+        campus: 'Main Campus',
+        hostel: 'Boys',
+        semester: 'Semester 1',
+        opens_on: '2026-01-01',
+        duration_months: 5,
+    });
+
+    assert.equal(result.status, 400);
+    assert.match(result.error, /1 and 4 months/);
 });
 
 test('overlapping hostel periods are rejected by the serialized creation operation', async () => {

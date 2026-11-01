@@ -16,6 +16,16 @@ const tabsByRole = {
     warden: ['Stays', 'History', 'Checkout Requests', 'Requests', 'Visitors', 'Inspections'],
 };
 
+const addMonthsToDate = (dateValue, months) => {
+    if (!dateValue) return undefined;
+    const [year, month, day] = dateValue.split('-').map(Number);
+    const targetMonth = month - 1 + months;
+    const targetYear = year + Math.floor(targetMonth / 12);
+    const normalizedMonth = targetMonth % 12;
+    const lastDay = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
+    return `${targetYear}-${String(normalizedMonth + 1).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+};
+
 const parseAuditDetails = (details) => {
     if (!details) return {};
     if (typeof details !== 'string') return details;
@@ -345,7 +355,7 @@ export default function OperationsDashboard() {
                 <TextField label="Semester / period name" required value={periodForm.semester} onChange={(event) => setPeriodForm({ ...periodForm, semester: event.target.value })} />
                 <TextField type="date" label="Opens on" required InputLabelProps={{ shrink: true }} value={periodForm.opens_on} onChange={(event) => setPeriodForm({ ...periodForm, opens_on: event.target.value })} />
                 <TextField select label="Duration" required value={periodForm.duration_months} onChange={(event) => setPeriodForm({ ...periodForm, duration_months: event.target.value })}>
-                    {Array.from({ length: 12 }, (_, index) => index + 1).map((months) => <MenuItem key={months} value={months}>{months} {months === 1 ? 'month' : 'months'}</MenuItem>)}
+                    {Array.from({ length: 4 }, (_, index) => index + 1).map((months) => <MenuItem key={months} value={months}>{months} {months === 1 ? 'month' : 'months'}</MenuItem>)}
                 </TextField>
                 <Button type="submit" variant="contained">Schedule period</Button>
             </Paper>
@@ -443,7 +453,7 @@ export default function OperationsDashboard() {
                 <DialogTitle>Planned stay dates</DialogTitle>
                 <DialogContent sx={{ display: 'grid', gap: 2, pt: '8px !important' }}>
                     <TextField type="date" label="Arrival" InputLabelProps={{ shrink: true }} value={dateDialog?.arrival_date || ''} onChange={e => setDateDialog({ ...dateDialog, arrival_date: e.target.value })} />
-                    <TextField type="date" label="Departure" InputLabelProps={{ shrink: true }} value={dateDialog?.departure_date || ''} onChange={e => setDateDialog({ ...dateDialog, departure_date: e.target.value })} />
+                    <TextField type="date" label="Departure" InputLabelProps={{ shrink: true }} inputProps={{ max: addMonthsToDate(dateDialog?.arrival_date, 4) }} helperText="A stay cannot exceed 4 months." value={dateDialog?.departure_date || ''} onChange={e => setDateDialog({ ...dateDialog, departure_date: e.target.value })} />
                 </DialogContent>
                 <DialogActions><Button onClick={() => setDateDialog(null)}>Cancel</Button><Button type="submit" variant="contained">Save dates</Button></DialogActions>
             </Box>

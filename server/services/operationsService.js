@@ -132,6 +132,9 @@ const updateStayDates = async (actorId, bookingId, arrivalDate, departureDate) =
     if (arrivalDate && departureDate && departureDate < arrivalDate) {
         return { error: 'Departure date cannot be before arrival date', status: 400 };
     }
+    if (arrivalDate && departureDate && departureDate > addMonths(arrivalDate, 4)) {
+        return { error: 'A stay cannot be longer than 4 months', status: 400 };
+    }
     const [result] = await model.updateStayDates(bookingId, arrivalDate, departureDate);
     if (!result.affectedRows) return { error: 'Active approved stay not found', status: 404 };
     await audit(actorId, 'stay.dates_updated', 'booking', bookingId, { arrival_date: arrivalDate, departure_date: departureDate });
@@ -288,8 +291,8 @@ const createPeriod = async (actorId, input) => {
     }
     if (!['Boys', 'Girls'].includes(hostel)) return { error: 'Select a valid hostel', status: 400 };
     if (!isValidDate(opensOn)) return { error: 'Enter a valid opening date', status: 400 };
-    if (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 12) {
-        return { error: 'Duration must be between 1 and 12 months', status: 400 };
+    if (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 4) {
+        return { error: 'Duration must be between 1 and 4 months', status: 400 };
     }
     const closesOn = addMonths(opensOn, durationMonths);
     const creation = await model.createPeriod({
