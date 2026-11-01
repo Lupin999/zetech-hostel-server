@@ -122,11 +122,11 @@ export default function Login() {
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
                     {tab === 0 && (
-                        <form onSubmit={handleEmailLogin}>
+                        <form onSubmit={handleEmailLogin} autoComplete="off">
                             <TextField placeholder="Email" type="email" fullWidth required
                                 sx={inputSx} value={email} onChange={e => { setEmail(e.target.value); if (fieldError === 'email') { setError(''); setFieldError(''); } }}
                                 error={fieldError === 'email'}
-                                inputProps={{ autoComplete: 'email' }} name="email" />
+                                inputProps={{ autoComplete: 'off' }} name="login-email" />
                             <TextField placeholder="Password" type={showPassword ? 'text' : 'password'} fullWidth required
                                 sx={{ ...inputSx, mb: pwFocused ? 0.5 : 3.5 }} value={password}
                                 onChange={e => { setPassword(e.target.value); if (fieldError === 'password') { setError(''); setFieldError(''); } }}
