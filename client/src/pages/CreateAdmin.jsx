@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, TextField, Button, Typography, Alert, CircularProgress, Box, Select, MenuItem, InputAdornment, IconButton } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import toast from 'react-hot-toast';
@@ -15,6 +16,7 @@ export default function CreateAdmin() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [showAdminSecret, setShowAdminSecret] = useState(false);
+    const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -28,8 +30,9 @@ export default function CreateAdmin() {
             const phone = form.phoneNumber ? countryCode + form.phoneNumber.replace(/^0+/, '') : '';
             const { phoneNumber: _phoneNumber, confirmPassword: _confirmPassword, ...rest } = form;
             await api.post('/auth/create-admin', { ...rest, phone });
-            toast.success('Admin account created! Redirecting to login...');
-            setTimeout(() => navigate('/login'), 1500);
+            await login(form.email, form.password, { adminOnly: true });
+            toast.success('Admin account created! Opening the admin dashboard...');
+            navigate('/admin', { replace: true });
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to create admin');
         } finally { setLoading(false); }

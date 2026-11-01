@@ -1,7 +1,7 @@
 import { Card, CardContent, Box, Typography, Chip, Button } from '@mui/material';
 import { SingleBed } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, formatHostelName, formatRoomNumber } from '../../utils/helpers';
 
 export default function RoomCard({ room, onSelectBed }) {
     const available = room.status === 'available' && room.occupied < room.capacity;
@@ -12,8 +12,8 @@ export default function RoomCard({ room, onSelectBed }) {
                 <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
                         <Box>
-                            <Typography variant="h6" fontWeight={700}>Room {room.room_number}</Typography>
-                            <Typography variant="caption" color="text.secondary">{room.hostel} • {room.room_type}</Typography>
+                            <Typography variant="h6" fontWeight={700}>Room {formatRoomNumber(room.room_number)}</Typography>
+                            <Typography variant="caption" color="text.secondary">{formatHostelName(room.hostel)} • {room.room_type}</Typography>
                         </Box>
                         <Chip label={formatCurrency(room.price)} color="secondary" size="small" />
                     </Box>

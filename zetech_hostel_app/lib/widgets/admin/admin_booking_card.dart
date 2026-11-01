@@ -45,8 +45,12 @@ class AdminBookingCard extends StatelessWidget {
             ),
             if (regNo != null) Text(regNo!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 8),
-            _row(Icons.hotel, 'Room ${booking.roomNumber ?? ''} • Bed ${booking.bedNumber ?? ''}'),
-            _row(Icons.location_on, booking.hostel ?? ''),
+            _row(
+              Icons.hotel,
+              'Room ${Helpers.formatRoomNumber(booking.roomNumber)}'
+              '${booking.bedNumber == null || booking.bedNumber == 0 ? '' : ' • Bed ${booking.bedNumber}'}',
+            ),
+            _row(Icons.location_on, Helpers.formatHostelName(booking.hostel)),
             _row(Icons.school, booking.semester ?? ''),
             _row(Icons.calendar_today, 'Arrival: ${Helpers.formatDate(booking.arrivalDate)}'),
             _row(Icons.access_time, 'Booked: ${Helpers.formatDate(booking.createdAt)}'),

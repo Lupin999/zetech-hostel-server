@@ -1,16 +1,16 @@
 import { Dialog, DialogTitle, DialogContent, DialogActions, Box, Chip, Alert, TextField, Button, CircularProgress, Typography } from '@mui/material';
 import { Payment } from '@mui/icons-material';
 import BedSelector from './BedSelector';
-import { formatCurrency, getMinDate } from '../../utils/helpers';
+import { formatCurrency, formatHostelName, formatRoomNumber, getMinDate } from '../../utils/helpers';
 import { MIN_DEPOSIT } from '../../utils/constants';
 
 export default function BookingDialog({ open, onClose, room, beds, loadingBeds, bedFilter, setBedFilter, selectedBed, setSelectedBed, arrivalDate, setArrivalDate, onBook, submitting }) {
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-            <DialogTitle sx={{ pb: 1 }}>Room {room?.room_number} — Select Your Bed</DialogTitle>
+            <DialogTitle sx={{ pb: 1 }}>Room {formatRoomNumber(room?.room_number)} — Select Your Bed</DialogTitle>
             <DialogContent>
                 <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
-                    <Chip label={room?.hostel} size="small" />
+                    <Chip label={formatHostelName(room?.hostel)} size="small" />
                     <Chip label={room?.room_type} size="small" />
                     <Chip label={room ? formatCurrency(room.price) : ''} color="secondary" size="small" />
                 </Box>
@@ -36,7 +36,7 @@ export default function BookingDialog({ open, onClose, room, beds, loadingBeds, 
                 {selectedBed && (
                     <Alert severity="success" sx={{ mt: 1.5 }}>
                         <Typography variant="body2">
-                            <b>Bed {selectedBed.bed_number}</b> ({selectedBed.position} bed) in <b>Room {room?.room_number}</b> — {room?.hostel} Hostel
+                            <b>Bed {selectedBed.bed_number}</b> ({selectedBed.position} bed) in <b>Room {formatRoomNumber(room?.room_number)}</b> — {formatHostelName(room?.hostel)}
                         </Typography>
                     </Alert>
                 )}

@@ -240,12 +240,14 @@ router.get('/docs', (req, res) => {
                 }
             },
             operations: {
-                description: 'Resident lifecycle, maintenance, visitor, finance reporting, student administration, and audit workflows',
+                description: 'Resident lifecycle, checkout approvals, hostel periods, maintenance, visitor, finance reporting, student administration, and audit workflows',
                 basePath: '/api/operations',
                 endpoints: [
                     'GET /students (admin)', 'PATCH /students/:id/role (admin)',
                     'GET /stays (admin/warden)', 'PUT /stays/:id/check-in (admin/warden)',
                     'PUT /stays/:id/check-out (admin/warden)', 'PUT /stays/:id/dates (admin/warden)',
+                    'GET /history (admin/warden)', 'GET|POST /checkout-requests (student scoped)',
+                    'PATCH /checkout-requests/:id/decision (admin/warden)', 'GET|POST /periods (admin)',
                     'GET|POST /requests (student scoped)', 'PATCH /requests/:id (admin/warden)',
                     'GET|POST /visitors (student scoped)', 'PATCH /visitors/:id/status (admin/warden)',
                     'GET|POST /inspections (admin/warden)', 'PATCH /rooms/:id/status (admin/warden)',

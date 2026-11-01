@@ -18,7 +18,7 @@ import useRooms from '../hooks/useRooms';
 import useNotices from '../hooks/useNotices';
 import StatCard from '../components/admin/StatCard';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { formatDate } from '../utils/helpers';
+import { formatDate, formatHostelName, formatRoomNumber } from '../utils/helpers';
 import dImg from '../d.jpg';
 
 ChartJS.register(ArcElement, ChartTooltip, Legend);
@@ -72,7 +72,7 @@ export default function AdminDashboard() {
             <Paper key={hostel} sx={{ overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ px: 2, py: 1.5, bgcolor: hostel === 'Boys' ? '#eef2ff' : '#fdf2f8', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 800, color: hostel === 'Boys' ? '#1a237e' : '#be185d' }}>
-                        {hostel} Hostel
+                        {formatHostelName(hostel)}
                     </Typography>
                 </Box>
                 <TableContainer>
@@ -83,11 +83,11 @@ export default function AdminDashboard() {
                         <TableBody>
                             {!rows.length ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>No rooms in {hostel}</TableCell>
+                                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>No rooms in {formatHostelName(hostel)}</TableCell>
                                 </TableRow>
                             ) : rows.map(r => (
                                 <TableRow key={r.id}>
-                                    <TableCell>{r.room_number}</TableCell>
+                                    <TableCell>{formatRoomNumber(r.room_number)}</TableCell>
                                     <TableCell>{r.room_type || 'quad'}</TableCell>
                                     <TableCell>{r.capacity}</TableCell>
                                     <TableCell>
@@ -259,8 +259,8 @@ export default function AdminDashboard() {
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
                 {[
                     { key: 'bookings', label: 'Student Bookings' },
-                    { key: 'boys', label: 'Boys Hostel' },
-                    { key: 'girls', label: 'Girls Hostel' },
+                    { key: 'boys', label: 'Male Hostel' },
+                    { key: 'girls', label: 'Female Hostel' },
                     { key: 'notices', label: 'Notices' },
                 ].map(tab => (
                     <Button
@@ -310,9 +310,9 @@ export default function AdminDashboard() {
                                 <TableRow key={b.id} sx={{ bgcolor: b.status === 'pending' ? 'rgba(251,140,0,0.04)' : undefined }}>
                                     <TableCell>{b.full_name}</TableCell>
                                     <TableCell>{b.reg_no}</TableCell>
-                                    <TableCell>{b.room_number}</TableCell>
+                                    <TableCell>{formatRoomNumber(b.room_number)}</TableCell>
                                     <TableCell>{hasBed ? `${b.bed_number} (${b.bed_position || ''})` : '—'}</TableCell>
-                                    <TableCell>{b.hostel}</TableCell>
+                                    <TableCell>{formatHostelName(b.hostel)}</TableCell>
                                     <TableCell>{b.arrival_date ? formatDate(b.arrival_date) : '—'}</TableCell>
                                     <TableCell><Chip label={b.status} size="small" color={b.status === 'approved' ? 'success' : b.status === 'rejected' ? 'error' : 'warning'} /></TableCell>
                                     <TableCell>{hasPayment ? <Chip label={b.payment_status === 'confirmed' ? 'Paid' : 'Pending'} size="small" color={b.payment_status === 'confirmed' ? 'success' : 'warning'} variant="outlined" /> : '—'}</TableCell>
@@ -345,7 +345,7 @@ export default function AdminDashboard() {
             {adminTab === 'boys' && (
                 <>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6">Boys Hostel</Typography>
+                        <Typography variant="h6">Male Hostel</Typography>
                         <Button size="small" startIcon={<Add />} onClick={() => setRoomDialog(true)}>Add Room</Button>
                     </Box>
                     {renderRoomSection('Boys')}
@@ -355,7 +355,7 @@ export default function AdminDashboard() {
             {adminTab === 'girls' && (
                 <>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6">Girls Hostel</Typography>
+                        <Typography variant="h6">Female Hostel</Typography>
                         <Button size="small" startIcon={<Add />} onClick={() => setRoomDialog(true)}>Add Room</Button>
                     </Box>
                     {renderRoomSection('Girls')}
@@ -375,8 +375,8 @@ export default function AdminDashboard() {
                                 <Box>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                                         <Typography fontWeight={600}>{n.title}</Typography>
-                                        <Chip label={n.target === 'all' ? '📢 All' : n.target === 'Boys' ? '🏠 Boys' : '🏠 Girls'}
-                                            size="small" color={n.target === 'all' ? 'default' : n.target === 'Boys' ? 'primary' : 'secondary'}
+                                        <Chip label={n.target === 'all' ? '📢 All' : `🏠 ${formatHostelName(n.target)}`}
+                                            size="small" color={n.target === 'all' ? 'default' : n.target?.toLowerCase() === 'boys' ? 'primary' : 'secondary'}
                                             sx={{ height: 22, fontSize: '0.7rem' }} />
                                     </Box>
                                     <Typography variant="body2" color="text.secondary">{n.message}</Typography>
@@ -395,7 +395,7 @@ export default function AdminDashboard() {
                 <DialogTitle>💬 Message {msgTarget?.full_name}</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
                     <Typography variant="body2" color="text.secondary">
-                        {msgTarget?.reg_no} • Room {msgTarget?.room_number} • {msgTarget?.hostel}
+                        {msgTarget?.reg_no} • Room {formatRoomNumber(msgTarget?.room_number)} • {formatHostelName(msgTarget?.hostel)}
                     </Typography>
                     <TextField label="Message" multiline rows={3} value={msgText}
                         onChange={e => setMsgText(e.target.value)} placeholder="e.g. Please visit the hostel office regarding your payment." autoFocus />
@@ -413,7 +413,7 @@ export default function AdminDashboard() {
                 <DialogTitle sx={{ color: '#e53935' }}>🚫 Suspend Booking</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
                     <Alert severity="warning">
-                        Suspending <b>{suspendTarget?.full_name}</b>'s booking for Room <b>{suspendTarget?.room_number}</b>. They will see this message and their portal access will be blocked.
+                        Suspending <b>{suspendTarget?.full_name}</b>'s booking for Room <b>{formatRoomNumber(suspendTarget?.room_number)}</b>. They will see this message and their portal access will be blocked.
                     </Alert>
                     <TextField label="Reason / Message to Student" multiline rows={3} value={suspendReason}
                         onChange={e => setSuspendReason(e.target.value)} placeholder="e.g. Insufficient payment — please clear your balance at the hostel office." />
@@ -430,7 +430,7 @@ export default function AdminDashboard() {
                 <DialogTitle>Add Room</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
                     <TextField label="Room Number" value={roomForm.room_number} onChange={e => setRoomForm({ ...roomForm, room_number: e.target.value })} />
-                    <TextField label="Hostel" select value={roomForm.hostel} onChange={e => setRoomForm({ ...roomForm, hostel: e.target.value })}><MenuItem value="Boys">Boys</MenuItem><MenuItem value="Girls">Girls</MenuItem></TextField>
+                    <TextField label="Hostel" select value={roomForm.hostel} onChange={e => setRoomForm({ ...roomForm, hostel: e.target.value })}><MenuItem value="Boys">Male Hostel</MenuItem><MenuItem value="Girls">Female Hostel</MenuItem></TextField>
                     <TextField label="Campus" value={roomForm.campus} onChange={e => setRoomForm({ ...roomForm, campus: e.target.value })} />
                     <TextField label="Type" select value={roomForm.room_type} onChange={e => setRoomForm({ ...roomForm, room_type: e.target.value })}><MenuItem value="single">Single</MenuItem><MenuItem value="double">Double</MenuItem><MenuItem value="quad">Quad</MenuItem></TextField>
                     <TextField label="Capacity" type="number" value={roomForm.capacity} onChange={e => setRoomForm({ ...roomForm, capacity: Number(e.target.value) })} />
@@ -444,8 +444,8 @@ export default function AdminDashboard() {
                     <TextField label="Target Audience" select value={noticeForm.target}
                         onChange={e => setNoticeForm({ ...noticeForm, target: e.target.value })}>
                         <MenuItem value="all">📢 Everyone</MenuItem>
-                        <MenuItem value="Boys">🏠 Boys Hostel Only</MenuItem>
-                        <MenuItem value="Girls">🏠 Girls Hostel Only</MenuItem>
+                        <MenuItem value="Boys">🏠 Male Hostel Only</MenuItem>
+                        <MenuItem value="Girls">🏠 Female Hostel Only</MenuItem>
                     </TextField>
                     <TextField label="Title" value={noticeForm.title} onChange={e => setNoticeForm({ ...noticeForm, title: e.target.value })} />
                     <TextField label="Message" multiline rows={4} value={noticeForm.message} onChange={e => setNoticeForm({ ...noticeForm, message: e.target.value })} />

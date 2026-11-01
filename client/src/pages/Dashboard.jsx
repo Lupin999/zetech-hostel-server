@@ -18,7 +18,7 @@ import useRooms from '../hooks/useRooms';
 import useBookings from '../hooks/useBookings';
 import useNotices from '../hooks/useNotices';
 import usePayments from '../hooks/usePayments';
-import { formatDate, getTodayName } from '../utils/helpers';
+import { formatDate, formatHostelName, formatRoomNumber, getTodayName } from '../utils/helpers';
 import { MENU_DATA, ASSETS_URL, CURRENT_SEMESTER } from '../utils/constants';
 import dImg from '../d.jpg';
 
@@ -74,14 +74,14 @@ export default function Dashboard() {
             soft: '#fdf2f8',
             dark: '#831843',
             glow: 'rgba(190, 24, 93, 0.18)',
-            label: 'Girls Hostel'
+            label: 'Female Hostel'
         }
         : {
             main: '#1a237e',
             soft: '#eef2ff',
             dark: '#0f172a',
             glow: 'rgba(26, 35, 126, 0.18)',
-            label: 'Boys Hostel'
+            label: 'Male Hostel'
         };
 
     useEffect(() => {
@@ -117,7 +117,7 @@ export default function Dashboard() {
         try {
             await api.post('/bookings', { room_id: selectedRoom.id, bed_id: selectedBed.id, semester: CURRENT_SEMESTER, arrival_date: arrivalDate });
             setDialogOpen(false); fetchAll();
-            Swal.fire({ icon: 'success', title: 'Booking Submitted!', text: `Room ${selectedRoom.room_number} Bed ${selectedBed.bed_number} (${selectedBed.position}) booked. Awaiting admin approval.`, confirmButtonColor: '#1a237e' });
+            Swal.fire({ icon: 'success', title: 'Booking Submitted!', text: `Room ${formatRoomNumber(selectedRoom.room_number)} Bed ${selectedBed.bed_number} (${selectedBed.position}) booked. Awaiting admin approval.`, confirmButtonColor: '#1a237e' });
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Booking Failed', text: err.response?.data?.error || 'Something went wrong', confirmButtonColor: '#1a237e' });
         } finally { setSubmitting(false); }
@@ -153,7 +153,7 @@ export default function Dashboard() {
                     {activeBooking?.suspended && (
                         <Alert severity="error" sx={{ mb: 3 }}>
                             <AlertTitle>🚫 Booking Suspended</AlertTitle>
-                            Your booking for Room {activeBooking.room_number} has been suspended by admin.
+                            Your booking for Room {formatRoomNumber(activeBooking.room_number)} has been suspended by admin.
                             {activeBooking.suspend_reason && <><br /><b>Reason:</b> {activeBooking.suspend_reason}</>}
                             <br />Contact the hostel office to resolve this.
                         </Alert>
@@ -162,14 +162,14 @@ export default function Dashboard() {
                         <Alert severity="success" icon={<CheckCircle />} sx={{ mb: 3 }}
                             action={<Button color="inherit" size="small" onClick={() => navigate('/my-bookings')}>Pay Now</Button>}>
                             <AlertTitle>Booking Approved!</AlertTitle>
-                            Room {activeBooking.room_number}{activeBooking.bed_number ? ` • Bed ${activeBooking.bed_number}` : ''} • {activeBooking.hostel}
+                            Room {formatRoomNumber(activeBooking.room_number)}{activeBooking.bed_number && String(activeBooking.bed_number).trim() !== '0' ? ` • Bed ${activeBooking.bed_number}` : ''} • {formatHostelName(activeBooking.hostel)}
                             {activeBooking.arrival_date && <> • {formatDate(activeBooking.arrival_date)}</>}
                         </Alert>
                     )}
                     {activeBooking?.status === 'pending' && (
                         <Alert severity="warning" icon={<HourglassTop />} sx={{ mb: 3 }}>
                             <AlertTitle>Booking Under Review</AlertTitle>
-                            Room {activeBooking.room_number}{activeBooking.bed_number ? ` Bed ${activeBooking.bed_number}` : ''} is being reviewed.
+                            Room {formatRoomNumber(activeBooking.room_number)}{activeBooking.bed_number && String(activeBooking.bed_number).trim() !== '0' ? ` Bed ${activeBooking.bed_number}` : ''} is being reviewed.
                         </Alert>
                     )}
                     {!activeBooking && bookingOpen && (
@@ -252,7 +252,7 @@ export default function Dashboard() {
                             onClick={() => !user?.hostel_preference && setHostelTab('Boys')}
                             disabled={!!user?.hostel_preference && user.hostel_preference !== 'Boys'}
                             sx={{ flex: 1, py: 1.2, bgcolor: activeHostel === 'Boys' ? '#1a237e' : undefined }}>
-                            🏠 Boys Hostel ({boysAvail}/{boysRooms.length} free)
+                            🏠 Male Hostel ({boysAvail}/{boysRooms.length} free)
                         </Button>
                         <Button
                             variant={activeHostel === 'Girls' ? 'contained' : 'outlined'}
@@ -260,13 +260,13 @@ export default function Dashboard() {
                             disabled={!!user?.hostel_preference && user.hostel_preference !== 'Girls'}
                             sx={{ flex: 1, py: 1.2, bgcolor: activeHostel === 'Girls' ? '#be185d' : undefined }}
                             color="secondary">
-                            🏠 Girls Hostel ({girlsAvail}/{girlsRooms.length} free)
+                            🏠 Female Hostel ({girlsAvail}/{girlsRooms.length} free)
                         </Button>
                     </Box>
 
                     {user?.hostel_preference && (
                         <Alert severity="info" sx={{ mb: 2, bgcolor: activeHostel === 'Girls' ? '#fdf2f8' : '#eef2ff' }}>
-                            Your assigned hostel is <b>{activeHostel}</b>. This view is locked to your hostel for privacy and separation.
+                            Your assigned hostel is <b>{formatHostelName(activeHostel)}</b>. This view is locked to your hostel for privacy and separation.
                         </Alert>
                     )}
 
@@ -278,8 +278,8 @@ export default function Dashboard() {
                                         <CardContent>
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
                                                 <Box>
-                                                    <Typography variant="h6" fontWeight={700}>Room {room.room_number}</Typography>
-                                                    <Typography variant="caption" color="text.secondary">{room.hostel} • {room.room_type}</Typography>
+                                                    <Typography variant="h6" fontWeight={700}>Room {formatRoomNumber(room.room_number)}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">{formatHostelName(room.hostel)} • {room.room_type}</Typography>
                                                 </Box>
                                                 <Chip label={`KES ${Number(room.price).toLocaleString()}`} color="secondary" size="small" />
                                             </Box>
@@ -308,10 +308,10 @@ export default function Dashboard() {
 
             {/* Bed Selection Dialog */}
             <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ pb: 1 }}>Room {selectedRoom?.room_number} — Select Your Bed</DialogTitle>
+                <DialogTitle sx={{ pb: 1 }}>Room {formatRoomNumber(selectedRoom?.room_number)} — Select Your Bed</DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
-                        <Chip label={selectedRoom?.hostel} size="small" />
+                        <Chip label={formatHostelName(selectedRoom?.hostel)} size="small" />
                         <Chip label={selectedRoom?.room_type} size="small" />
                         <Chip label={`KES ${selectedRoom ? Number(selectedRoom.price).toLocaleString() : ''}`} color="secondary" size="small" />
                     </Box>
@@ -404,7 +404,7 @@ export default function Dashboard() {
                     {selectedBed && (
                         <Alert severity="success" sx={{ mt: 1.5 }}>
                             <Typography variant="body2">
-                                <b>Bed {selectedBed.bed_number}</b> ({selectedBed.position} bed) in <b>Room {selectedRoom?.room_number}</b> — {selectedRoom?.hostel} Hostel
+                                <b>Bed {selectedBed.bed_number}</b> ({selectedBed.position} bed) in <b>Room {formatRoomNumber(selectedRoom?.room_number)}</b> — {formatHostelName(selectedRoom?.hostel)}
                             </Typography>
                         </Alert>
                     )}

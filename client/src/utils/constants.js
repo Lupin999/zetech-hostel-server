@@ -1,5 +1,9 @@
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-export const ASSETS_URL = import.meta.env.VITE_ASSETS_URL || 'http://localhost:5000/assets';
+const configuredAssetsUrl = import.meta.env.VITE_ASSETS_URL;
+const localAssetsUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(configuredAssetsUrl || '');
+export const ASSETS_URL = configuredAssetsUrl && !(import.meta.env.PROD && localAssetsUrl)
+    ? configuredAssetsUrl
+    : `${API_BASE_URL.replace(/\/api\/?$/, '')}/assets`;
 
 export const BOOKING_FEE = 30000;
 export const MIN_DEPOSIT = 12000;

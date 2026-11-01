@@ -8,6 +8,18 @@ export const timeAgo = (d) => DateTime.fromISO(d).toRelative();
 
 export const formatCurrency = (amount) => `KES ${Number(amount).toLocaleString()}`;
 
+export const formatHostelName = (hostel) => {
+    const normalized = String(hostel || '').trim().toLowerCase();
+    if (normalized === 'boys' || normalized === 'male') return 'Male Hostel';
+    if (normalized === 'girls' || normalized === 'female') return 'Female Hostel';
+    return hostel || '—';
+};
+
+export const formatRoomNumber = (roomNumber) => {
+    const value = String(roomNumber ?? '').trim();
+    return value && value !== '0' && value.toLowerCase() !== 'null' ? value : '—';
+};
+
 export const formatPaymentMethod = (method) => {
     if (method === 'legacy_manual') return 'Legacy manual (historical)';
     if (method === 'mpesa') return 'M-Pesa';

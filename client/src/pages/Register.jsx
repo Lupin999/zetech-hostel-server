@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import AuthLayout from '../components/AuthLayout';
 import { COUNTRY_CODES } from '../utils/constants';
 import api from '../utils/api';
+import { formatHostelName } from '../utils/helpers';
 
 const inputSx = { mb: 2.5, '& input': { color: '#000' }, '& input::placeholder': { color: '#000', opacity: 0.7 } };
 
@@ -191,7 +192,7 @@ export default function Register() {
                             <MenuItem value="Female" sx={{ color: '#1f2937', '&.Mui-selected': { bgcolor: '#e8eaf6' } }}>Female</MenuItem>
                         </TextField>
                         <Box sx={{ mb: 2.5, px: 1.5, py: 1.2, borderRadius: 1, backgroundColor: '#f5f7ff', border: '1px solid #dfe3f5', color: '#1a237e', fontWeight: 600 }}>
-                            Hostel group: {hostelPreference} Hostel
+                            Hostel group: {formatHostelName(hostelPreference)}
                         </Box>
                         <Button type="submit" variant="contained" fullWidth size="large" disabled={loading} sx={{ mb: 2, py: 1.5 }}>
                             {loading ? <CircularProgress size={24} /> : 'Register'}

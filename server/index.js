@@ -8,6 +8,8 @@ const path = require('path');
 const logger = require('./utils/logger');
 const errorHandler = require('./middleware/errorHandler');
 const rateLimit = require('./middleware/rateLimit');
+const { startPeriodScheduler } = require('./services/periodScheduler');
+const { getAllowedOrigins } = require('./config/cors');
 
 const app = express();
 
@@ -20,14 +22,11 @@ app.get('/health', (req, res) => {
 });
 
 // CORS — must be before helmet so preflight OPTIONS requests pass
-// Set ALLOWED_ORIGINS in .env as a comma-separated list of allowed origins.
-// e.g. ALLOWED_ORIGINS=https://zetech-hostel.netlify.app,http://localhost:5173
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:4173'];
+// Add deployment-specific frontend origins in ALLOWED_ORIGINS as a comma-separated list.
+const allowedOrigins = getAllowedOrigins();
 
 if (process.env.NODE_ENV === 'production' && !process.env.ALLOWED_ORIGINS) {
-    logger.warn('ALLOWED_ORIGINS is not set — CORS will block all browser requests in production!');
+    logger.warn('ALLOWED_ORIGINS is not set — using the built-in CORS allowlist in production.');
 }
 
 app.use(cors({
@@ -91,6 +90,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
     logger.info(`Server running on port ${PORT}`);
+    startPeriodScheduler();
 
     if (process.env.NODE_ENV === 'production') {
         const https = require('https');

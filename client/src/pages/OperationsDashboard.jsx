@@ -7,12 +7,12 @@ import {
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { formatPaymentMethod } from '../utils/helpers';
+import { formatHostelName, formatPaymentMethod, formatRoomNumber } from '../utils/helpers';
 
 const tabsByRole = {
-    admin: ['Stays', 'Students', 'Requests', 'Visitors', 'Inspections', 'Payments', 'Reports', 'Audit'],
+    admin: ['Stays', 'History', 'Checkout Requests', 'Periods', 'Students', 'Requests', 'Visitors', 'Inspections', 'Payments', 'Reports', 'Audit'],
     accounts: ['Payments', 'Reports'],
-    warden: ['Stays', 'Requests', 'Visitors', 'Inspections'],
+    warden: ['Stays', 'History', 'Checkout Requests', 'Requests', 'Visitors', 'Inspections'],
 };
 
 const csvDownload = (name, rows) => {
@@ -76,6 +76,9 @@ export default function OperationsDashboard() {
     const [rooms, setRooms] = useState([]);
     const [search, setSearch] = useState('');
     const [report, setReport] = useState(null);
+    const [periodForm, setPeriodForm] = useState({
+        campus: '', hostel: 'Boys', semester: '', opens_on: new Date().toISOString().slice(0, 10), duration_months: 3,
+    });
     const [dateDialog, setDateDialog] = useState(null);
     const [inspectionDialog, setInspectionDialog] = useState(false);
     const [inspectionForm, setInspectionForm] = useState({ room_id: '', condition_status: 'good', cleanliness: 'clean', safety_status: 'clear', notes: '' });
@@ -89,6 +92,14 @@ export default function OperationsDashboard() {
     const load = async () => {
         try {
             if (activeTab === 'Stays') setRows((await api.get('/operations/stays')).data);
+            if (activeTab === 'History') setRows((await api.get('/operations/history', { params: { search } })).data);
+            if (activeTab === 'Checkout Requests') setRows((await api.get('/operations/checkout-requests')).data);
+            if (activeTab === 'Periods') {
+                const [periodRes, roomRes] = await Promise.all([api.get('/operations/periods'), api.get('/rooms')]);
+                setRows(periodRes.data);
+                setRooms(roomRes.data);
+                if (!periodForm.campus && roomRes.data.length) setPeriodForm((current) => ({ ...current, campus: roomRes.data[0].campus }));
+            }
             if (activeTab === 'Students') setRows((await api.get('/operations/students', { params: { search } })).data);
             if (activeTab === 'Requests') setRows((await api.get('/operations/requests')).data);
             if (activeTab === 'Visitors') setRows((await api.get('/operations/visitors')).data);
@@ -106,6 +117,9 @@ export default function OperationsDashboard() {
         if (!activeTab || activeTab === 'Reports') return undefined;
         let active = true;
         const request = activeTab === 'Stays' ? api.get('/operations/stays')
+            : activeTab === 'History' ? api.get('/operations/history', { params: { search } })
+                : activeTab === 'Checkout Requests' ? api.get('/operations/checkout-requests')
+                    : activeTab === 'Periods' ? Promise.all([api.get('/operations/periods'), api.get('/rooms')])
             : activeTab === 'Students' ? api.get('/operations/students', { params: { search } })
                 : activeTab === 'Requests' ? api.get('/operations/requests')
                         : activeTab === 'Visitors' ? api.get('/operations/visitors')
@@ -114,7 +128,11 @@ export default function OperationsDashboard() {
                             : api.get('/operations/audit');
         request.then(response => {
             if (!active) return;
-            if (activeTab === 'Payments') {
+            if (activeTab === 'Periods') {
+                setRows(response[0].data);
+                setRooms(response[1].data);
+                setPeriodForm((current) => current.campus ? current : { ...current, campus: response[1].data[0]?.campus || '' });
+            } else if (activeTab === 'Payments') {
                 setFinancePayments(response.data);
             } else if (activeTab === 'Inspections') {
                 setRows(response[0].data);
@@ -186,6 +204,27 @@ export default function OperationsDashboard() {
         catch (error) { toast.error(error.response?.data?.error || 'Could not update visitor'); }
     };
 
+    const decideCheckout = async (row, decision) => {
+        if (decision === 'approved' && !window.confirm(`Approve checkout for ${row.full_name} from ${formatHostelName(row.hostel)}, Room ${formatRoomNumber(row.room_number)}? Their stay will be completed and the bed released.`)) return;
+        const note = decision === 'declined' ? window.prompt('Reason for declining (optional):') : '';
+        if (note === null) return;
+        try {
+            await api.patch(`/operations/checkout-requests/${row.id}/decision`, { decision, note });
+            await load();
+            toast.success(`Checkout request ${decision}`);
+        } catch (error) { toast.error(error.response?.data?.error || 'Could not decide checkout request'); }
+    };
+
+    const createHostelPeriod = async (event) => {
+        event.preventDefault();
+        try {
+            await api.post('/operations/periods', { ...periodForm, duration_months: Number(periodForm.duration_months) });
+            setPeriodForm((current) => ({ ...current, semester: '' }));
+            await load();
+            toast.success('Hostel period scheduled');
+        } catch (error) { toast.error(error.response?.data?.error || 'Could not schedule hostel period'); }
+    };
+
     const confirmPayment = async (payment) => {
         try {
             await api.patch(`/payments/${payment.id}/confirm`);
@@ -203,8 +242,40 @@ export default function OperationsDashboard() {
         </Tabs>
 
         {activeTab === 'Stays' && <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Resident', 'Room / bed', 'Arrival', 'Departure', 'Payment', 'Stay status', 'Action'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-            <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell><TableCell>{row.hostel} {row.room_number} {row.bed_number ? `· Bed ${row.bed_number}` : ''}</TableCell><TableCell>{row.arrival_date ? new Date(row.arrival_date).toLocaleDateString() : '—'}</TableCell><TableCell>{row.departure_date ? new Date(row.departure_date).toLocaleDateString() : '—'}</TableCell><TableCell>{Number(row.confirmed_payments) ? <Chip size="small" color="success" label="Confirmed" /> : <Chip size="small" color="warning" label="Unpaid" />}</TableCell><TableCell>{row.checked_out_at ? 'Checked out' : row.checked_in_at ? `In since ${new Date(row.checked_in_at).toLocaleString()}` : 'Not checked in'}</TableCell><TableCell>{!row.checked_out_at && <Button size="small" onClick={() => setDateDialog({ id: row.id, arrival_date: row.arrival_date?.slice(0, 10) || '', departure_date: row.departure_date?.slice(0, 10) || '' })}>Dates</Button>}{!row.checked_in_at && !row.checked_out_at && <Button size="small" disabled={!Number(row.confirmed_payments)} onClick={() => changeStayStatus(row.id, 'check-in')}>Check in</Button>}{row.checked_in_at && !row.checked_out_at && <Button size="small" color="warning" onClick={() => changeStayStatus(row.id, 'check-out')}>Check out</Button>}</TableCell></TableRow>)}
+            <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)} {row.bed_number && String(row.bed_number).trim() !== '0' ? `· Bed ${row.bed_number}` : ''}</TableCell><TableCell>{row.arrival_date ? new Date(row.arrival_date).toLocaleDateString() : '—'}</TableCell><TableCell>{row.departure_date ? new Date(row.departure_date).toLocaleDateString() : '—'}</TableCell><TableCell>{Number(row.confirmed_payments) ? <Chip size="small" color="success" label="Confirmed" /> : <Chip size="small" color="warning" label="Unpaid" />}</TableCell><TableCell>{row.checked_out_at ? 'Checked out' : row.checked_in_at ? `In since ${new Date(row.checked_in_at).toLocaleString()}` : 'Not checked in'}</TableCell><TableCell>{!row.checked_out_at && <Button size="small" onClick={() => setDateDialog({ id: row.id, arrival_date: row.arrival_date?.slice(0, 10) || '', departure_date: row.departure_date?.slice(0, 10) || '' })}>Dates</Button>}{!row.checked_in_at && !row.checked_out_at && <Button size="small" disabled={!Number(row.confirmed_payments)} onClick={() => changeStayStatus(row.id, 'check-in')}>Check in</Button>}{row.checked_in_at && !row.checked_out_at && <Button size="small" color="warning" onClick={() => changeStayStatus(row.id, 'check-out')}>Check out</Button>}</TableCell></TableRow>)}
                 {!rows.length && <TableRow><TableCell colSpan={7} align="center">No approved stays</TableCell></TableRow>}</TableBody></Table></TableContainer>}
+
+        {activeTab === 'History' && <>
+            <TextField label="Search student, registration, semester, room" size="small" value={search} onChange={(event) => setSearch(event.target.value)} sx={{ mb: 2, minWidth: 320 }} />
+            <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Student', 'Room / bed', 'Semester', 'Arrival date', 'Checked in', 'Checked out', 'Payment'].map((value) => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
+                <TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)} {row.bed_number && String(row.bed_number).trim() !== '0' ? `· Bed ${row.bed_number}` : ''}<br /><Typography variant="caption">{row.campus}</Typography></TableCell><TableCell>{row.semester}</TableCell><TableCell>{row.arrival_date ? new Date(row.arrival_date).toLocaleDateString() : '—'}</TableCell><TableCell>{row.checked_in_at ? new Date(row.checked_in_at).toLocaleString() : '—'}</TableCell><TableCell>{row.checked_out_at ? new Date(row.checked_out_at).toLocaleString() : '—'}</TableCell><TableCell>{Number(row.confirmed_payments) ? 'Confirmed' : 'No confirmed payment'}</TableCell></TableRow>)}
+                    {!rows.length && <TableRow><TableCell colSpan={7} align="center">No completed stays found</TableCell></TableRow>}</TableBody></Table></TableContainer>
+        </>}
+
+        {activeTab === 'Checkout Requests' && <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Requested', 'Student', 'Room / bed', 'Semester', 'Reason', 'Status', 'Decision'].map((value) => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
+            <TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell>{new Date(row.requested_at).toLocaleString()}</TableCell><TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)} {row.bed_number && String(row.bed_number).trim() !== '0' ? `· Bed ${row.bed_number}` : ''}</TableCell><TableCell>{row.semester}</TableCell><TableCell>{row.reason || '—'}</TableCell><TableCell><Chip size="small" color={row.status === 'pending' ? 'warning' : row.status === 'approved' ? 'success' : 'default'} label={row.status} /></TableCell><TableCell>{row.status === 'pending' && <><Button size="small" color="success" onClick={() => decideCheckout(row, 'approved')}>Approve</Button><Button size="small" color="error" onClick={() => decideCheckout(row, 'declined')}>Decline</Button></>}{row.decision_note || (row.reviewer_name ? `Reviewed by ${row.reviewer_name}` : '—')}</TableCell></TableRow>)}
+                {!rows.length && <TableRow><TableCell colSpan={7} align="center">No checkout requests</TableCell></TableRow>}</TableBody></Table></TableContainer>}
+
+        {activeTab === 'Periods' && <>
+            <Alert severity="warning" sx={{ mb: 2 }}>When a period closes, checked-in residents in that hostel and campus are automatically checked out and their beds released. Approved bookings that were never checked in are cancelled.</Alert>
+            <Paper component="form" onSubmit={createHostelPeriod} sx={{ p: 2, mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                <TextField select label="Campus" required value={periodForm.campus} onChange={(event) => setPeriodForm({ ...periodForm, campus: event.target.value })} sx={{ minWidth: 180 }}>
+                    {[...new Set(rooms.map((room) => room.campus))].map((campus) => <MenuItem key={campus} value={campus}>{campus}</MenuItem>)}
+                </TextField>
+                <TextField select label="Hostel" required value={periodForm.hostel} onChange={(event) => setPeriodForm({ ...periodForm, hostel: event.target.value })}>
+                    {['Boys', 'Girls'].map((hostel) => <MenuItem key={hostel} value={hostel}>{formatHostelName(hostel)}</MenuItem>)}
+                </TextField>
+                <TextField label="Semester / period name" required value={periodForm.semester} onChange={(event) => setPeriodForm({ ...periodForm, semester: event.target.value })} />
+                <TextField type="date" label="Opens on" required InputLabelProps={{ shrink: true }} value={periodForm.opens_on} onChange={(event) => setPeriodForm({ ...periodForm, opens_on: event.target.value })} />
+                <TextField select label="Duration" required value={periodForm.duration_months} onChange={(event) => setPeriodForm({ ...periodForm, duration_months: event.target.value })}>
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map((months) => <MenuItem key={months} value={months}>{months} {months === 1 ? 'month' : 'months'}</MenuItem>)}
+                </TextField>
+                <Button type="submit" variant="contained">Schedule period</Button>
+            </Paper>
+            <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Semester / period', 'Campus', 'Hostel', 'Opens', 'Closes', 'Duration', 'Status', 'Created by'].map((value) => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
+                <TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell>{row.semester}</TableCell><TableCell>{row.campus}</TableCell><TableCell>{formatHostelName(row.hostel)}</TableCell><TableCell>{new Date(row.opens_on).toLocaleDateString()}</TableCell><TableCell>{new Date(row.closes_on).toLocaleDateString()}</TableCell><TableCell>{row.duration_months} months</TableCell><TableCell><Chip size="small" label={row.status} color={row.status === 'open' ? 'success' : row.status === 'scheduled' ? 'info' : 'default'} /></TableCell><TableCell>{row.created_by_name || 'System'}</TableCell></TableRow>)}
+                    {!rows.length && <TableRow><TableCell colSpan={8} align="center">No hostel periods scheduled</TableCell></TableRow>}</TableBody></Table></TableContainer>
+        </>}
 
         {activeTab === 'Students' && <>
             <TextField label="Search students" size="small" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') load(); }} sx={{ mb: 2, minWidth: 280 }} />
@@ -225,14 +296,14 @@ export default function OperationsDashboard() {
         {activeTab === 'Inspections' && <>
             <Button variant="contained" sx={{ mb: 2 }} onClick={() => setInspectionDialog(true)}>Record inspection</Button>
             <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Room', 'Inspector', 'Condition', 'Cleanliness', 'Safety', 'Room status', 'Notes'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.inspected_at).toLocaleString()}</TableCell><TableCell>{row.hostel} {row.room_number}</TableCell><TableCell>{row.inspector_name || '—'}</TableCell><TableCell>{row.condition_status.replace('_', ' ')}</TableCell><TableCell>{row.cleanliness.replace('_', ' ')}</TableCell><TableCell>{row.safety_status.replace('_', ' ')}</TableCell><TableCell><TextField select size="small" value={row.room_status} onChange={e => setRoomStatus(row.room_id, e.target.value)} sx={{ minWidth: 140 }}>{['available', 'full', 'maintenance'].map(status => <MenuItem key={status} value={status}>{status}</MenuItem>)}</TextField></TableCell><TableCell>{row.notes || '—'}</TableCell></TableRow>)}
+                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.inspected_at).toLocaleString()}</TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)}</TableCell><TableCell>{row.inspector_name || '—'}</TableCell><TableCell>{row.condition_status.replace('_', ' ')}</TableCell><TableCell>{row.cleanliness.replace('_', ' ')}</TableCell><TableCell>{row.safety_status.replace('_', ' ')}</TableCell><TableCell><TextField select size="small" value={row.room_status} onChange={e => setRoomStatus(row.room_id, e.target.value)} sx={{ minWidth: 140 }}>{['available', 'full', 'maintenance'].map(status => <MenuItem key={status} value={status}>{status}</MenuItem>)}</TextField></TableCell><TableCell>{row.notes || '—'}</TableCell></TableRow>)}
                     {!rows.length && <TableRow><TableCell colSpan={8} align="center">No inspections recorded</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
         {activeTab === 'Payments' && <>
             <Typography variant="h6" sx={{ mb: 1 }}>Payment verification</Typography>
             <TableContainer component={Paper} sx={{ mb: 3 }}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Registration', 'Room', 'Method', 'Reference', 'Amount', 'Status', 'Action'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{financePayments.map(payment => <TableRow key={payment.id}><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.full_name}</TableCell><TableCell>{payment.reg_no}</TableCell><TableCell>{payment.hostel} {payment.room_number}</TableCell><TableCell>{formatPaymentMethod(payment.payment_method)}</TableCell><TableCell>{payment.mpesa_code || '—'}</TableCell><TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell><TableCell>{payment.status}</TableCell><TableCell>{payment.status === 'pending' && <Button size="small" onClick={() => confirmPayment(payment)}>Confirm</Button>}</TableCell></TableRow>)}
+                <TableBody>{financePayments.map(payment => <TableRow key={payment.id}><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.full_name}</TableCell><TableCell>{payment.reg_no}</TableCell><TableCell>{formatHostelName(payment.hostel)} {formatRoomNumber(payment.room_number)}</TableCell><TableCell>{formatPaymentMethod(payment.payment_method)}</TableCell><TableCell>{payment.mpesa_code || '—'}</TableCell><TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell><TableCell>{payment.status}</TableCell><TableCell>{payment.status === 'pending' && <Button size="small" onClick={() => confirmPayment(payment)}>Confirm</Button>}</TableCell></TableRow>)}
                     {!financePayments.length && <TableRow><TableCell colSpan={9} align="center">No payments found</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
@@ -260,10 +331,10 @@ export default function OperationsDashboard() {
                 </Box>
                 <Typography variant="h6" sx={{ mb: 1 }}>Outstanding balances</Typography>
                 <TableContainer component={Paper} sx={{ mb: 3 }}><Table size="small"><TableHead><TableRow>{['Student', 'Registration', 'Room', 'Semester', 'Due', 'Paid', 'Balance'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                    <TableBody>{report.balance_rows.map(row => <TableRow key={row.booking_id}><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.hostel} {row.room_number}</TableCell><TableCell>{row.semester}</TableCell><TableCell>KES {Number(row.amount_due).toLocaleString()}</TableCell><TableCell>KES {Number(row.amount_paid).toLocaleString()}</TableCell><TableCell>KES {Number(row.balance).toLocaleString()}</TableCell></TableRow>)}
+                    <TableBody>{report.balance_rows.map(row => <TableRow key={row.booking_id}><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)}</TableCell><TableCell>{row.semester}</TableCell><TableCell>KES {Number(row.amount_due).toLocaleString()}</TableCell><TableCell>KES {Number(row.amount_paid).toLocaleString()}</TableCell><TableCell>KES {Number(row.balance).toLocaleString()}</TableCell></TableRow>)}
                         {!report.balance_rows.length && <TableRow><TableCell colSpan={7} align="center">No approved bookings</TableCell></TableRow>}</TableBody></Table></TableContainer>
                 <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Reg No', 'Room', 'Method', 'Reference', 'Amount', 'Status'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                    <TableBody>{reportRows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.payment_date).toLocaleDateString()}</TableCell><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.hostel} {row.room_number}</TableCell><TableCell>{formatPaymentMethod(row.payment_method)}</TableCell><TableCell>{row.mpesa_code || '—'}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{row.status}</TableCell></TableRow>)}
+                    <TableBody>{reportRows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.payment_date).toLocaleDateString()}</TableCell><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)}</TableCell><TableCell>{formatPaymentMethod(row.payment_method)}</TableCell><TableCell>{row.mpesa_code || '—'}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{row.status}</TableCell></TableRow>)}
                         {!reportRows.length && <TableRow><TableCell colSpan={8} align="center">No payments for this period</TableCell></TableRow>}</TableBody></Table></TableContainer>
             </>}
         </>}
@@ -288,7 +359,7 @@ export default function OperationsDashboard() {
                 <DialogTitle>Record room inspection</DialogTitle>
                 <DialogContent sx={{ display: 'grid', gap: 2, pt: '8px !important' }}>
                     <TextField select label="Room" required value={inspectionForm.room_id} onChange={e => setInspectionForm({ ...inspectionForm, room_id: e.target.value })}>
-                        {rooms.map(room => <MenuItem key={room.id} value={room.id}>{room.hostel} {room.room_number} · {room.campus}</MenuItem>)}
+                        {rooms.map(room => <MenuItem key={room.id} value={room.id}>{formatHostelName(room.hostel)} {formatRoomNumber(room.room_number)} · {room.campus}</MenuItem>)}
                     </TextField>
                     <TextField select label="Condition" value={inspectionForm.condition_status} onChange={e => setInspectionForm({ ...inspectionForm, condition_status: e.target.value })}>
                         <MenuItem value="good">Good</MenuItem><MenuItem value="attention_required">Attention required</MenuItem><MenuItem value="uninhabitable">Uninhabitable</MenuItem>

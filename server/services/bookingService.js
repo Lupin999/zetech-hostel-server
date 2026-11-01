@@ -2,6 +2,7 @@ const BookingModel = require('../models/bookingModel');
 const RoomModel = require('../models/roomModel');
 const UserModel = require('../models/userModel');
 const { sendNotification, sendToRole } = require('./notificationService');
+const OperationsModel = require('../models/operationsModel');
 
 const getActiveBooking = async (userId) => {
     const [bookings] = await BookingModel.getActiveBooking(userId);
@@ -43,6 +44,10 @@ const createBooking = async (userId, { room_id, bed_id, semester, arrival_date }
     const [room] = await RoomModel.getRoomById(room_id);
     if (!room.length) return { error: 'Room not found', status: 404 };
     if (room[0].status !== 'available') return { error: 'Room not available', status: 400 };
+    const [periodAccess] = await OperationsModel.getPeriodBookingAccess(room[0].campus, room[0].hostel);
+    if (Number(periodAccess[0].configured) > 0 && Number(periodAccess[0].is_open || 0) === 0) {
+        return { error: 'Bookings are closed for this hostel and campus', status: 400 };
+    }
 
     // Check bed
     if (bed_id) {

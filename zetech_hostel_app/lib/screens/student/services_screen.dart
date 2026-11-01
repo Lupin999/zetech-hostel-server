@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../config/api_config.dart';
 import '../../utils/api_client.dart';
+import '../../utils/helpers.dart';
 
 class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key});
@@ -16,9 +17,12 @@ class _ServicesScreenState extends State<ServicesScreen> {
   final _visitorName = TextEditingController();
   final _visitorPhone = TextEditingController();
   final _visitorPurpose = TextEditingController();
+  final _checkoutReason = TextEditingController();
   List<Map<String, dynamic>> _requests = [];
   List<Map<String, dynamic>> _visitors = [];
   List<Map<String, dynamic>> _payments = [];
+  List<Map<String, dynamic>> _checkoutRequests = [];
+  Map<String, dynamic>? _currentStay;
   String _requestType = 'maintenance';
   String _priority = 'normal';
   bool _loading = true;
@@ -37,6 +41,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
     _visitorName.dispose();
     _visitorPhone.dispose();
     _visitorPurpose.dispose();
+    _checkoutReason.dispose();
     super.dispose();
   }
 
@@ -50,12 +55,20 @@ class _ServicesScreenState extends State<ServicesScreen> {
         ApiClient.get('${ApiConfig.operations}/requests'),
         ApiClient.get('${ApiConfig.operations}/visitors'),
         ApiClient.get(ApiConfig.myPayments),
+        ApiClient.get('${ApiConfig.operations}/my-stay'),
+        ApiClient.get('${ApiConfig.operations}/checkout-requests'),
       ]);
       if (!mounted) return;
+      final stayResult = results[3];
+      final stay = stayResult is Map ? stayResult['stay'] : null;
       setState(() {
         _requests = _asList(results[0]);
         _visitors = _asList(results[1]);
         _payments = _asList(results[2]);
+        _currentStay = stay is Map
+            ? Map<String, dynamic>.from(stay)
+            : null;
+        _checkoutRequests = _asList(results[4]);
         _loading = false;
       });
     } catch (error) {
@@ -97,7 +110,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Student Services'),
@@ -107,13 +120,19 @@ class _ServicesScreenState extends State<ServicesScreen> {
               Tab(text: 'Requests'),
               Tab(text: 'Visitors'),
               Tab(text: 'Payments'),
+              Tab(text: 'Checkout'),
             ],
           ),
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : TabBarView(
-                children: [_requestTab(), _visitorTab(), _paymentTab()],
+                children: [
+                  _requestTab(),
+                  _visitorTab(),
+                  _paymentTab(),
+                  _checkoutTab(),
+                ],
               ),
       ),
     );
@@ -276,6 +295,99 @@ class _ServicesScreenState extends State<ServicesScreen> {
                   'Room ${payment['room_number']} · ${payment['payment_method'] == 'legacy_manual' ? 'Legacy manual (historical)' : 'M-Pesa'}\n'
                   'Reference: ${payment['mpesa_code'] ?? '—'} · ${payment['payment_date']}',
                 ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+
+  Widget _checkoutTab() => RefreshIndicator(
+    onRefresh: _loadData,
+    child: ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Checkout requests must be approved by an admin or warden before your stay ends.',
+        ),
+        const SizedBox(height: 12),
+        if (_currentStay == null)
+          const Card(
+            child: ListTile(
+              title: Text('No active checked-in stay'),
+              subtitle: Text(
+                'You can request checkout after hostel staff check you in.',
+              ),
+            ),
+          )
+        else ...[
+          Card(
+            child: ListTile(
+              title: Text(
+                '${Helpers.formatHostelName(_currentStay!['hostel']?.toString())} · Room ${Helpers.formatRoomNumber(_currentStay!['room_number']?.toString())}',
+              ),
+              subtitle: Text(
+                'Campus: ${_currentStay!['campus']} · Semester: ${_currentStay!['semester']}',
+              ),
+            ),
+          ),
+          if (_checkoutRequests.any(
+            (request) =>
+                request['booking_id'].toString() ==
+                    _currentStay!['id'].toString() &&
+                request['status'] == 'pending',
+          ))
+            const Card(
+              child: ListTile(
+                leading: Icon(Icons.hourglass_top),
+                title: Text('Request awaiting staff approval'),
+              ),
+            )
+          else ...[
+            TextField(
+              controller: _checkoutReason,
+              maxLength: 1000,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Reason for checkout (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _submitting
+                  ? null
+                  : () => _submit(
+                      'checkout-requests',
+                      {'reason': _checkoutReason.text.trim()},
+                      _checkoutReason.clear,
+                    ),
+              child: const Text('Request checkout'),
+            ),
+          ],
+        ],
+        const Divider(height: 32),
+        const Text(
+          'Checkout request history',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        if (_checkoutRequests.isEmpty)
+          _empty('No checkout requests yet')
+        else
+          ..._checkoutRequests.map(
+            (request) => Card(
+              child: ListTile(
+                title: Text(
+                  '${Helpers.formatHostelName(request['hostel']?.toString())} · Room ${Helpers.formatRoomNumber(request['room_number']?.toString())}',
+                ),
+                subtitle: Text(
+                  'Requested: ${request['requested_at']}\n'
+                  'Reason: ${request['reason'] ?? '—'}\n'
+                  'Status: ${request['status']}\n'
+                  '${request['decision_note'] ?? 'Awaiting review'}',
+                ),
+                isThreeLine: true,
               ),
             ),
           ),

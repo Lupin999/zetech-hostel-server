@@ -2,6 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class Helpers {
+  static String formatHostelName(String? hostel) {
+    switch (hostel?.trim().toLowerCase()) {
+      case 'boys':
+      case 'male':
+        return 'Male Hostel';
+      case 'girls':
+      case 'female':
+        return 'Female Hostel';
+      default:
+        return hostel ?? '—';
+    }
+  }
+
+  static String formatRoomNumber(String? roomNumber) {
+    final value = roomNumber?.trim() ?? '';
+    return value.isEmpty || value == '0' || value.toLowerCase() == 'null'
+        ? '—'
+        : value;
+  }
+
   static String formatDate(String? dateStr) {
     if (dateStr == null) return '';
     try {

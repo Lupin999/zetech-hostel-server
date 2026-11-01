@@ -15,7 +15,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import BookingStatusChip from '../components/bookings/BookingStatusChip';
 import MpesaDialog from '../components/payments/MpesaDialog';
-import { formatDate } from '../utils/helpers';
+import { formatDate, formatHostelName, formatRoomNumber } from '../utils/helpers';
 import { useAuth } from '../context/AuthContext';
 import { SCHOOL_PAYBILL } from '../utils/constants';
 
@@ -150,8 +150,8 @@ export default function MyBookings() {
                                 const payment = getPayment(b.id);
                                 return (
                                     <TableRow key={b.id}>
-                                        <TableCell>{b.room_number}</TableCell>
-                                        <TableCell>{b.hostel}</TableCell>
+                                        <TableCell>{formatRoomNumber(b.room_number)}</TableCell>
+                                        <TableCell>{formatHostelName(b.hostel)}</TableCell>
                                         <TableCell>KES {b.price}</TableCell>
                                         <TableCell>{b.semester}</TableCell>
                                         <TableCell>{formatDate(b.created_at)}</TableCell>
@@ -196,7 +196,7 @@ export default function MyBookings() {
 
             {/* Manual Payment Dialog */}
             <Dialog open={payOpen} onClose={() => setPayOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Manual Payment — Room {selectedBooking?.room_number}</DialogTitle>
+                <DialogTitle>Manual Payment — Room {formatRoomNumber(selectedBooking?.room_number)}</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
                     <Alert severity="info">
                         Pay via M-Pesa: go to Lipa na M-Pesa → Paybill. Business number: <strong>{SCHOOL_PAYBILL}</strong>.

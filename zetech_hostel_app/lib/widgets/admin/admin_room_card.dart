@@ -25,9 +25,9 @@ class AdminRoomCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(room.roomNumber ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(Helpers.formatRoomNumber(room.roomNumber), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 4),
-                  Text('${room.hostel ?? ''} • ${room.campus ?? ''}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text('${Helpers.formatHostelName(room.hostel)} • ${room.campus ?? ''}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   const SizedBox(height: 4),
                   Text('${room.roomType ?? ''} • Capacity: ${room.capacity ?? 0}', style: const TextStyle(fontSize: 12)),
                   const SizedBox(height: 4),

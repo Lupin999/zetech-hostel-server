@@ -39,6 +39,12 @@ router.patch('/students/:id/role', authenticateToken, allowRoles('admin'),
     run((req) => operationsService.setStudentRole(req.user, req.params.id, req.body.role)));
 
 router.get('/stays', authenticateToken, allowRoles('admin', 'warden'), run(() => operationsService.listStays()));
+router.get('/my-stay', authenticateToken, run((req) => operationsService.getStudentCurrentStay(req.user.id)));
+router.get('/history', authenticateToken, allowRoles('admin', 'warden'),
+    query('search').optional().isString(), (req, res, next) => {
+        if (handleErrors(req, res)) return;
+        next();
+    }, run((req) => operationsService.listStayHistory(req.query.search || '')));
 router.put('/stays/:id/check-in', authenticateToken, allowRoles('admin', 'warden'), (req, res, next) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     next();
@@ -52,6 +58,30 @@ router.put('/stays/:id/dates', authenticateToken, allowRoles('admin', 'warden'),
     body('departure_date').optional({ values: 'null' }).isISO8601({ strict: true }),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.updateStayDates(req.user.id, req.params.id, req.body.arrival_date || null, req.body.departure_date || null)));
+
+router.get('/checkout-requests', authenticateToken, run((req) => operationsService.listCheckoutRequests(req.user)));
+router.post('/checkout-requests', authenticateToken,
+    body('reason').optional().isString().isLength({ max: 1000 }),
+    (req, res, next) => { if (handleErrors(req, res)) return; next(); },
+    run((req) => operationsService.createCheckoutRequest(req.user.id, req.body.reason)));
+router.patch('/checkout-requests/:id/decision', authenticateToken, allowRoles('admin', 'warden'),
+    param('id').custom(validId), body('decision').isIn(['approved', 'declined']),
+    body('note').optional().isString().isLength({ max: 1000 }),
+    (req, res, next) => { if (handleErrors(req, res)) return; next(); },
+    run((req) => operationsService.decideCheckoutRequest(req.user, req.params.id, req.body.decision, req.body.note)));
+
+router.get('/periods', authenticateToken, allowRoles('admin'), run(() => operationsService.listPeriods()));
+router.post('/periods', authenticateToken, allowRoles('admin'),
+    body('campus').trim().isLength({ min: 1, max: 100 }),
+    body('hostel').isIn(['Boys', 'Girls']),
+    body('semester').trim().isLength({ min: 1, max: 80 }),
+    body('opens_on').isISO8601({ strict: true }),
+    body('duration_months').isInt({ min: 1, max: 12 }),
+    (req, res, next) => { if (handleErrors(req, res)) return; next(); },
+    run((req) => operationsService.createPeriod(req.user.id, {
+        ...req.body,
+        duration_months: Number(req.body.duration_months),
+    })));
 
 router.get('/requests', authenticateToken, run((req) => operationsService.listRequests(req.user)));
 router.post('/requests', authenticateToken,

@@ -39,8 +39,8 @@ test('successful check-in is recorded in the audit log', async () => {
     assert.equal(auditEntry.entityId, 20);
 });
 
-test('students without an approved booking cannot submit service requests', async () => {
-    model.getStudentRoom = async () => [[], []];
+test('students without a checked-in room cannot submit service requests', async () => {
+    model.getStudentCurrentStay = async () => [[], []];
     model.createRequest = () => assert.fail('request must not be created');
 
     const result = await service.createRequest(7, {
@@ -48,7 +48,35 @@ test('students without an approved booking cannot submit service requests', asyn
     });
 
     assert.equal(result.status, 403);
-    assert.match(result.error, /approved booking/);
+    assert.match(result.error, /checked-in room/);
+});
+
+test('service requests are attached to the current checked-in room', async () => {
+    let request;
+    model.getStudentCurrentStay = async () => [[{ id: 14, room_id: 9 }], []];
+    model.createRequest = async (value) => {
+        request = value;
+        return [{ insertId: 41 }];
+    };
+
+    const result = await service.createRequest(7, {
+        title: 'Leaking tap', description: 'The tap is leaking.', request_type: 'maintenance',
+    });
+
+    assert.equal(result.id, 41);
+    assert.equal(request.roomId, 9);
+});
+
+test('students without a checked-in room cannot register visitors', async () => {
+    model.getStudentCurrentStay = async () => [[], []];
+    model.createVisitor = () => assert.fail('visitor must not be created');
+
+    const result = await service.createVisitor(7, {
+        visitor_name: 'Guest', purpose: 'Visit',
+    });
+
+    assert.equal(result.status, 403);
+    assert.match(result.error, /checked-in room/);
 });
 
 test('date reports reject reversed or malformed ranges', async () => {
@@ -69,4 +97,58 @@ test('wardens see only their own balances; finance staff see the ledger', async 
     await service.getBalances({ id: 15, role: 'accounts' });
 
     assert.deepEqual(requestedScopes, [14, null]);
+});
+
+test('checkout requests require an active checked-in stay', async () => {
+    model.getStudentCurrentStay = async () => [[], []];
+    model.createCheckoutRequest = () => assert.fail('checkout request must not be created');
+
+    const result = await service.createCheckoutRequest(7, 'Leaving campus');
+
+    assert.equal(result.status, 409);
+    assert.match(result.error, /checked in/);
+});
+
+test('students without a checked-in stay receive an empty current-stay result', async () => {
+    model.getStudentCurrentStay = async () => [[], []];
+
+    assert.deepEqual(await service.getStudentCurrentStay(7), { stay: null });
+});
+
+test('period closing dates clamp to the final day of the target month', async () => {
+    let savedPeriod;
+    model.createPeriod = async period => {
+        savedPeriod = period;
+        return [{ insertId: 31 }];
+    };
+    model.writeAuditLog = async () => [];
+
+    const result = await service.createPeriod(7, {
+        campus: 'Main Campus',
+        hostel: 'Boys',
+        semester: 'Semester 1',
+        opens_on: '2024-01-31',
+        duration_months: 1,
+    });
+
+    assert.equal(savedPeriod.closesOn, '2024-02-29');
+    assert.equal(result.closes_on, '2024-02-29');
+});
+
+test('overlapping hostel periods are rejected by the serialized creation operation', async () => {
+    model.createPeriod = async () => ({
+        error: 'This period overlaps another scheduled or open period for that hostel and campus',
+        status: 409,
+    });
+
+    const result = await service.createPeriod(7, {
+        campus: 'Main Campus',
+        hostel: 'Boys',
+        semester: 'Semester 2',
+        opens_on: '2026-09-01',
+        duration_months: 3,
+    });
+
+    assert.equal(result.status, 409);
+    assert.match(result.error, /overlaps/);
 });

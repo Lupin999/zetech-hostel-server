@@ -278,7 +278,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 16),
                 CustomTextField(label: 'Room Number', controller: numController),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(value: hostel, decoration: const InputDecoration(labelText: 'Hostel'), items: ['Boys', 'Girls'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => hostel = v!),
+                DropdownButtonFormField<String>(value: hostel, decoration: const InputDecoration(labelText: 'Hostel'), items: ['Boys', 'Girls'].map((s) => DropdownMenuItem(value: s, child: Text(Helpers.formatHostelName(s)))).toList(), onChanged: (v) => hostel = v!),
                 const SizedBox(height: 12),
                 CustomTextField(label: 'Campus', controller: campusController),
                 const SizedBox(height: 12),

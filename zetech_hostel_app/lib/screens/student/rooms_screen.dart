@@ -128,8 +128,8 @@ class _RoomsScreenState extends State<RoomsScreen> {
                 const Text('Select a Bed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  Chip(label: Text(room.roomNumber ?? '')),
-                  Chip(label: Text(room.hostel ?? '')),
+                  Chip(label: Text(Helpers.formatRoomNumber(room.roomNumber))),
+                  Chip(label: Text(Helpers.formatHostelName(room.hostel))),
                   Chip(label: Text(room.campus ?? '')),
                   Chip(label: Text(room.roomType ?? '')),
                   Chip(label: Text('KES ${Helpers.formatAmount(room.price ?? 0)}')),

@@ -19,7 +19,19 @@ const listStays = () => pool.query(
         (SELECT COUNT(*) FROM payments p WHERE p.booking_id = b.id AND p.status = 'confirmed') AS confirmed_payments
      FROM bookings b JOIN users u ON u.id = b.user_id JOIN rooms r ON r.id = b.room_id
      LEFT JOIN beds bd ON bd.id = b.bed_id
-    WHERE b.status IN ('approved', 'completed') ORDER BY b.arrival_date IS NULL, b.arrival_date, b.id DESC`
+    WHERE b.status = 'approved' ORDER BY b.arrival_date IS NULL, b.arrival_date, b.id DESC`
+);
+
+const listStayHistory = (search = '') => pool.query(
+    `SELECT b.id, b.semester, b.arrival_date, b.departure_date, b.checked_in_at, b.checked_out_at,
+        r.room_number, r.hostel, r.campus, bd.bed_number, u.full_name, u.reg_no,
+        (SELECT COUNT(*) FROM payments p WHERE p.booking_id = b.id AND p.status = 'confirmed') AS confirmed_payments
+     FROM bookings b JOIN users u ON u.id = b.user_id JOIN rooms r ON r.id = b.room_id
+     LEFT JOIN beds bd ON bd.id = b.bed_id
+     WHERE b.status = 'completed' AND b.checked_out_at IS NOT NULL
+       AND (? = '' OR u.full_name LIKE ? OR u.reg_no LIKE ? OR b.semester LIKE ? OR r.room_number LIKE ?)
+     ORDER BY b.checked_out_at DESC, b.id DESC LIMIT 1000`,
+    [search, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
 );
 
 const checkIn = (bookingId) => pool.query(
@@ -39,6 +51,107 @@ const getStayBed = (bookingId) => pool.query(
     'SELECT bed_id FROM bookings WHERE id = ? AND status = \'approved\' AND checked_in_at IS NOT NULL AND checked_out_at IS NULL',
     [bookingId]
 );
+
+const getStudentCurrentStay = (userId) => pool.query(
+    `SELECT b.id, b.room_id, r.room_number, r.hostel, r.campus, b.semester
+     FROM bookings b JOIN rooms r ON r.id = b.room_id
+     WHERE b.user_id = ? AND b.status = 'approved'
+       AND b.checked_in_at IS NOT NULL AND b.checked_out_at IS NULL
+     ORDER BY b.checked_in_at DESC LIMIT 1`,
+    [userId]
+);
+
+const createCheckoutRequest = async ({ bookingId, userId, reason }) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        const [stays] = await connection.query(
+            `SELECT id FROM bookings WHERE id = ? AND user_id = ? AND status = 'approved'
+             AND checked_in_at IS NOT NULL AND checked_out_at IS NULL FOR UPDATE`,
+            [bookingId, userId]
+        );
+        if (!stays.length) {
+            await connection.rollback();
+            return { error: 'An active checked-in stay is required to request checkout', status: 409 };
+        }
+        const [pending] = await connection.query(
+            "SELECT id FROM checkout_requests WHERE booking_id = ? AND status = 'pending' FOR UPDATE",
+            [bookingId]
+        );
+        if (pending.length) {
+            await connection.rollback();
+            return { error: 'A checkout request is already awaiting review', status: 409 };
+        }
+        const [result] = await connection.query(
+            'INSERT INTO checkout_requests (booking_id, user_id, reason) VALUES (?, ?, ?)',
+            [bookingId, userId, reason || null]
+        );
+        await connection.commit();
+        return { id: result.insertId };
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
+
+const listCheckoutRequests = (userId) => pool.query(
+    `SELECT c.*, b.semester, b.arrival_date, b.checked_in_at,
+        u.full_name, u.reg_no, r.room_number, r.hostel, r.campus, bd.bed_number,
+        reviewer.full_name AS reviewer_name
+     FROM checkout_requests c
+     JOIN bookings b ON b.id = c.booking_id JOIN users u ON u.id = c.user_id
+     JOIN rooms r ON r.id = b.room_id LEFT JOIN beds bd ON bd.id = b.bed_id
+     LEFT JOIN users reviewer ON reviewer.id = c.reviewed_by
+     WHERE (? IS NULL OR c.user_id = ?)
+     ORDER BY FIELD(c.status, 'pending', 'approved', 'declined'), c.requested_at DESC`,
+    [userId || null, userId || null]
+);
+
+const decideCheckoutRequest = async ({ requestId, reviewerId, decision, note }) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        const [requests] = await connection.query(
+            `SELECT c.id, c.booking_id, c.user_id, c.status, b.bed_id
+             FROM checkout_requests c JOIN bookings b ON b.id = c.booking_id
+             WHERE c.id = ? FOR UPDATE`,
+            [requestId]
+        );
+        if (!requests.length || requests[0].status !== 'pending') {
+            await connection.rollback();
+            return null;
+        }
+        const request = requests[0];
+        if (decision === 'approved') {
+            const [result] = await connection.query(
+                `UPDATE bookings SET checked_out_at = CURRENT_TIMESTAMP, status = 'completed'
+                 WHERE id = ? AND status = 'approved' AND checked_in_at IS NOT NULL AND checked_out_at IS NULL`,
+                [request.booking_id]
+            );
+            if (!result.affectedRows) {
+                await connection.rollback();
+                return { error: 'The stay is no longer active', status: 409 };
+            }
+            if (request.bed_id) {
+                await connection.query("UPDATE beds SET status = 'available' WHERE id = ?", [request.bed_id]);
+            }
+        }
+        await connection.query(
+            `UPDATE checkout_requests SET status = ?, decision_note = ?, reviewed_by = ?,
+             reviewed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'`,
+            [decision, note || null, reviewerId, requestId]
+        );
+        await connection.commit();
+        return { bookingId: request.booking_id, userId: request.user_id };
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
 
 const updateStayDates = (bookingId, arrivalDate, departureDate) => pool.query(
     `UPDATE bookings SET arrival_date = ?, departure_date = ?
@@ -203,9 +316,146 @@ const listAuditLogs = () => pool.query(
      ORDER BY a.created_at DESC LIMIT 500`
 );
 
+const listPeriods = () => pool.query(
+    `SELECT p.*, u.full_name AS created_by_name
+     FROM hostel_periods p LEFT JOIN users u ON u.id = p.created_by
+     ORDER BY p.opens_on DESC, p.id DESC`
+);
+
+const createPeriod = async ({ campus, hostel, semester, opensOn, durationMonths, closesOn, createdBy }) => {
+    const connection = await pool.getConnection();
+    const lockName = 'hostel_period_create';
+    let lockAcquired = false;
+    try {
+        const [locks] = await connection.query('SELECT GET_LOCK(?, 10) AS acquired', [lockName]);
+        if (Number(locks[0].acquired) !== 1) {
+            return { error: 'Could not safely schedule the hostel period. Please try again.', status: 503 };
+        }
+        lockAcquired = true;
+        await connection.beginTransaction();
+        const [overlaps] = await connection.query(
+            `SELECT id FROM hostel_periods
+             WHERE campus = ? AND hostel = ? AND status IN ('scheduled', 'open')
+               AND opens_on < ? AND closes_on > ? LIMIT 1 FOR UPDATE`,
+            [campus, hostel, closesOn, opensOn]
+        );
+        if (overlaps.length) {
+            await connection.rollback();
+            return { error: 'This period overlaps another scheduled or open period for that hostel and campus', status: 409 };
+        }
+        const [result] = await connection.query(
+            `INSERT INTO hostel_periods (campus, hostel, semester, opens_on, duration_months, closes_on, status, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, IF(? <= CURDATE(), 'open', 'scheduled'), ?)`,
+            [campus, hostel, semester, opensOn, durationMonths, closesOn, opensOn, createdBy]
+        );
+        await connection.commit();
+        return [result];
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        if (lockAcquired) await connection.query('SELECT RELEASE_LOCK(?)', [lockName]);
+        connection.release();
+    }
+};
+
+const getPeriodBookingAccess = (campus, hostel) => pool.query(
+    `SELECT COUNT(*) AS configured,
+        SUM(status IN ('scheduled', 'open') AND opens_on <= CURDATE() AND closes_on > CURDATE()) AS is_open
+     FROM hostel_periods WHERE campus = ? AND hostel = ?`,
+    [campus, hostel]
+);
+
+const activateDuePeriods = () => pool.query(
+    `UPDATE hostel_periods SET status = 'open'
+     WHERE status = 'scheduled' AND opens_on <= CURDATE() AND closes_on > CURDATE()`
+);
+
+const closeExpiredPeriods = async () => {
+    const [duePeriods] = await pool.query(
+        `SELECT id FROM hostel_periods WHERE status IN ('scheduled', 'open') AND closes_on <= CURDATE()
+         ORDER BY closes_on, id`
+    );
+    let closed = 0;
+    for (const { id } of duePeriods) {
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            const [periods] = await connection.query(
+                `SELECT id, campus, hostel FROM hostel_periods
+                 WHERE id = ? AND status IN ('scheduled', 'open') AND closes_on <= CURDATE() FOR UPDATE`,
+                [id]
+            );
+            if (!periods.length) {
+                await connection.rollback();
+                continue;
+            }
+            const period = periods[0];
+            const [stays] = await connection.query(
+                `SELECT b.id, b.bed_id, b.user_id, b.checked_in_at
+                 FROM bookings b JOIN rooms r ON r.id = b.room_id
+                 WHERE r.campus = ? AND r.hostel = ? AND b.status = 'approved'
+                   AND b.checked_out_at IS NULL FOR UPDATE`,
+                [period.campus, period.hostel]
+            );
+            const checkedInIds = stays.filter((stay) => stay.checked_in_at).map((stay) => stay.id);
+            const notCheckedInIds = stays.filter((stay) => !stay.checked_in_at).map((stay) => stay.id);
+            if (checkedInIds.length) {
+                const placeholders = checkedInIds.map(() => '?').join(', ');
+                await connection.query(
+                    `UPDATE bookings SET status = 'completed', checked_out_at = CURRENT_TIMESTAMP
+                     WHERE id IN (${placeholders})`,
+                    checkedInIds
+                );
+                await connection.query(
+                    `UPDATE checkout_requests SET status = 'approved',
+                     decision_note = 'Automatically approved when the hostel period closed',
+                     reviewed_at = CURRENT_TIMESTAMP
+                     WHERE booking_id IN (${placeholders}) AND status = 'pending'`,
+                    checkedInIds
+                );
+            }
+            if (notCheckedInIds.length) {
+                const placeholders = notCheckedInIds.map(() => '?').join(', ');
+                await connection.query(
+                    `UPDATE bookings SET status = 'cancelled'
+                     WHERE id IN (${placeholders})`,
+                    notCheckedInIds
+                );
+            }
+            const bedIds = stays.map((stay) => stay.bed_id).filter(Boolean);
+            if (bedIds.length) {
+                const placeholders = bedIds.map(() => '?').join(', ');
+                await connection.query(
+                    `UPDATE beds SET status = 'available' WHERE id IN (${placeholders})`,
+                    bedIds
+                );
+            }
+            await connection.query(
+                `UPDATE hostel_periods SET status = 'closed', closed_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                [id]
+            );
+            await connection.query(
+                `INSERT INTO admin_audit_logs (action, entity_type, entity_id, details)
+                 VALUES ('hostel.period.closed', 'hostel_period', ?, ?)`,
+                [String(id), JSON.stringify({ campus: period.campus, hostel: period.hostel, checked_out: checkedInIds.length, cancelled: notCheckedInIds.length })]
+            );
+            await connection.commit();
+            closed += 1;
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+    return closed;
+};
+
 module.exports = {
-    listStudents, updateRole, listStays, checkIn, checkOut, getStayBed, updateStayDates, updateBedStatus, getStudentRoom,
+    listStudents, updateRole, listStays, listStayHistory, checkIn, checkOut, getStayBed, getStudentCurrentStay, createCheckoutRequest, listCheckoutRequests, decideCheckoutRequest, updateStayDates, updateBedStatus, getStudentRoom,
     createRequest, listRequests, updateRequest, createVisitor, listVisitors,
     getVisitor, updateVisitorStatus, listInspections, createInspection, updateRoomStatus, getPaymentReceipt,
     getPaymentReport, getBalances, getOverview, writeAuditLog, listAuditLogs,
+    listPeriods, createPeriod, getPeriodBookingAccess, activateDuePeriods, closeExpiredPeriods,
 };

@@ -40,7 +40,7 @@ class RoomCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(room.roomNumber ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(Helpers.formatRoomNumber(room.roomNumber), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -50,7 +50,7 @@ class RoomCard extends StatelessWidget {
                     color: room.hostel?.toLowerCase().contains('girl') == true ? Colors.pink.shade100 : Colors.blue.shade100,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(room.hostel ?? '', style: const TextStyle(fontSize: 11)),
+                  child: Text(Helpers.formatHostelName(room.hostel), style: const TextStyle(fontSize: 11)),
                 ),
                 const SizedBox(width: 6),
                 Expanded(child: Text(room.roomType ?? '', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),

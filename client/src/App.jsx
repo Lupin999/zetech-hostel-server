@@ -32,10 +32,12 @@ function Loading() {
     );
 }
 
-function ProtectedRoute({ children }) {
+function StudentRoute({ children }) {
     const { user, loading } = useAuth();
     if (loading) return <Loading />;
-    return user ? <Layout><PageTransition>{children}</PageTransition></Layout> : <Navigate to="/login" />;
+    if (!user) return <Navigate to="/login" />;
+    if (user.role !== 'student') return <Navigate to={getUserHomePath(user)} replace />;
+    return <Layout><PageTransition>{children}</PageTransition></Layout>;
 }
 
 function AdminRoute({ children, allowAccounts = false }) {
@@ -65,13 +67,13 @@ function AppRoutes({ showSplash, onSplashDone }) {
                     <Route path="/register" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><Register /></PageTransition>} />
                     <Route path="/create-admin" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><CreateAdmin /></PageTransition>} />
                     <Route path="/forgot-password" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><ForgotPassword /></PageTransition>} />
-                    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                    <Route path="/dashboard" element={<StudentRoute><Dashboard /></StudentRoute>} />
+                    <Route path="/profile" element={<StudentRoute><Profile /></StudentRoute>} />
 
-                    <Route path="/my-bookings" element={<ProtectedRoute><MyBookings /></ProtectedRoute>} />
-                    <Route path="/notices" element={<ProtectedRoute><Notices /></ProtectedRoute>} />
-                    <Route path="/menu" element={<ProtectedRoute><Menu /></ProtectedRoute>} />
-                    <Route path="/services" element={<ProtectedRoute><StudentServices /></ProtectedRoute>} />
+                    <Route path="/my-bookings" element={<StudentRoute><MyBookings /></StudentRoute>} />
+                    <Route path="/notices" element={<StudentRoute><Notices /></StudentRoute>} />
+                    <Route path="/menu" element={<StudentRoute><Menu /></StudentRoute>} />
+                    <Route path="/services" element={<StudentRoute><StudentServices /></StudentRoute>} />
                     <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                     <Route path="/operations" element={<AdminRoute allowAccounts><OperationsDashboard /></AdminRoute>} />
                     <Route path="*" element={<Navigate to={user ? getUserHomePath(user) : "/login"} replace />} />

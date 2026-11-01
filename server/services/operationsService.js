@@ -1,5 +1,6 @@
 const model = require('../models/operationsModel');
 const RoomModel = require('../models/roomModel');
+const { sendNotification } = require('./notificationService');
 
 const staffRoles = ['admin', 'accounts', 'warden'];
 const residentialRoles = ['admin', 'warden'];
@@ -46,6 +47,18 @@ const listStays = async () => {
     return rows;
 };
 
+const getStudentCurrentStay = async (userId) => {
+    const [rows] = await model.getStudentCurrentStay(userId);
+    return { stay: rows[0] || null };
+};
+
+const listStayHistory = async (search = '') => {
+    await model.activateDuePeriods();
+    await model.closeExpiredPeriods();
+    const [rows] = await model.listStayHistory(search.trim().slice(0, 100));
+    return rows;
+};
+
 const checkIn = async (actorId, bookingId) => {
     const [result] = await model.checkIn(bookingId);
     if (!result.affectedRows) return { error: 'Check-in requires an approved booking, confirmed payment, and no existing stay', status: 409 };
@@ -63,6 +76,49 @@ const checkOut = async (actorId, bookingId) => {
     return { message: 'Resident checked out' };
 };
 
+const createCheckoutRequest = async (userId, reason) => {
+    const { stay } = await getStudentCurrentStay(userId);
+    if (!stay) return { error: 'You must be checked in to request checkout', status: 409 };
+    const result = await model.createCheckoutRequest({
+        bookingId: stay.id,
+        userId,
+        reason: reason?.trim() || null,
+    });
+    if (result.error) return result;
+    await sendNotification(userId, `Your checkout request for ${stay.hostel} Hostel Room ${stay.room_number} is awaiting admin or warden approval.`, 'booking');
+    return { id: result.id, message: 'Checkout request submitted for staff review' };
+};
+
+const listCheckoutRequests = async (user) => {
+    const [rows] = await model.listCheckoutRequests(
+        ['admin', 'warden'].includes(user.role) ? null : user.id
+    );
+    return rows;
+};
+
+const decideCheckoutRequest = async (actor, requestId, decision, note) => {
+    if (!['approved', 'declined'].includes(decision)) {
+        return { error: 'Decision must be approved or declined', status: 400 };
+    }
+    const result = await model.decideCheckoutRequest({
+        requestId,
+        reviewerId: actor.id,
+        decision,
+        note: note?.trim() || null,
+    });
+    if (!result) return { error: 'Pending checkout request not found', status: 404 };
+    if (result.error) return result;
+    await sendNotification(
+        result.userId,
+        decision === 'approved'
+            ? 'Your checkout request was approved. Your stay is now complete.'
+            : `Your checkout request was declined.${note?.trim() ? ` Note: ${note.trim()}` : ''}`,
+        'booking'
+    );
+    await audit(actor.id, `stay.checkout_${decision}`, 'booking', result.bookingId, { request_id: requestId });
+    return { message: `Checkout request ${decision}` };
+};
+
 const updateStayDates = async (actorId, bookingId, arrivalDate, departureDate) => {
     if (arrivalDate && departureDate && departureDate < arrivalDate) {
         return { error: 'Departure date cannot be before arrival date', status: 400 };
@@ -74,11 +130,14 @@ const updateStayDates = async (actorId, bookingId, arrivalDate, departureDate) =
 };
 
 const createRequest = async (userId, input) => {
-    const [rooms] = await model.getStudentRoom(userId, input.room_id || null);
-    if (!rooms.length) return { error: 'An active approved booking is required to submit a request', status: 403 };
+    const { stay } = await getStudentCurrentStay(userId);
+    if (!stay) return { error: 'An active checked-in room is required to submit a request', status: 403 };
+    if (input.room_id && Number(input.room_id) !== Number(stay.room_id)) {
+        return { error: 'Requests can only be submitted for your current room', status: 403 };
+    }
     const [result] = await model.createRequest({
         userId,
-        roomId: rooms[0].id,
+        roomId: stay.room_id,
         requestType: input.request_type || 'maintenance',
         title: input.title.trim(),
         description: input.description.trim(),
@@ -105,8 +164,8 @@ const updateRequest = async (actorId, id, input) => {
 };
 
 const createVisitor = async (userId, input) => {
-    const [rooms] = await model.getStudentRoom(userId, null);
-    if (!rooms.length) return { error: 'An active approved booking is required to register a visitor', status: 403 };
+    const { stay } = await getStudentCurrentStay(userId);
+    if (!stay) return { error: 'An active checked-in room is required to register a visitor', status: 403 };
     const [result] = await model.createVisitor({
         residentId: userId,
         visitorName: input.visitor_name.trim(),
@@ -188,10 +247,57 @@ const getAuditLogs = async () => {
     return rows;
 };
 
+const addMonths = (dateValue, months) => {
+    const [year, month, day] = dateValue.split('-').map(Number);
+    const targetMonth = month - 1 + months;
+    const targetYear = year + Math.floor(targetMonth / 12);
+    const normalizedMonth = targetMonth % 12;
+    const lastDay = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
+    return `${targetYear}-${String(normalizedMonth + 1).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+};
+
+const isValidDate = (value) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+};
+
+const listPeriods = async () => {
+    await model.activateDuePeriods();
+    await model.closeExpiredPeriods();
+    const [rows] = await model.listPeriods();
+    return rows;
+};
+
+const createPeriod = async (actorId, input) => {
+    const campus = input.campus.trim();
+    const semester = input.semester.trim();
+    const { hostel, opens_on: opensOn, duration_months: durationMonths } = input;
+    if (!campus || !semester || campus.length > 100 || semester.length > 80) {
+        return { error: 'Campus and semester are required', status: 400 };
+    }
+    if (!['Boys', 'Girls'].includes(hostel)) return { error: 'Select a valid hostel', status: 400 };
+    if (!isValidDate(opensOn)) return { error: 'Enter a valid opening date', status: 400 };
+    if (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 12) {
+        return { error: 'Duration must be between 1 and 12 months', status: 400 };
+    }
+    const closesOn = addMonths(opensOn, durationMonths);
+    const creation = await model.createPeriod({
+        campus, hostel, semester, opensOn, durationMonths, closesOn, createdBy: actorId,
+    });
+    if (creation?.error) return creation;
+    const [result] = creation;
+    await audit(actorId, 'hostel.period.created', 'hostel_period', result.insertId, {
+        campus, hostel, semester, opens_on: opensOn, closes_on: closesOn, duration_months: durationMonths,
+    });
+    return { id: result.insertId, closes_on: closesOn, message: 'Hostel period scheduled' };
+};
+
 module.exports = {
-    listStudents, setStudentRole, listStays, checkIn, checkOut, updateStayDates, createRequest,
+    listStudents, setStudentRole, listStays, getStudentCurrentStay, listStayHistory, checkIn, checkOut, createCheckoutRequest, listCheckoutRequests, decideCheckoutRequest, updateStayDates, createRequest,
     listRequests, updateRequest, createVisitor, listVisitors, updateVisitor,
     listInspections, createInspection, updateRoomStatus,
     getPaymentReceipt, getBalances,
-    getReports, getAuditLogs,
+    getReports, getAuditLogs, listPeriods, createPeriod,
 };

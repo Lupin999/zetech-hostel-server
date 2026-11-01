@@ -31,7 +31,7 @@ class AdminPaymentCard extends StatelessWidget {
             ),
             if (regNo != null) Text(regNo!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 8),
-            Text('Room ${payment.roomNumber ?? ''} • ${payment.hostel ?? ''}', style: const TextStyle(fontSize: 12)),
+            Text('Room ${Helpers.formatRoomNumber(payment.roomNumber)} • ${Helpers.formatHostelName(payment.hostel)}', style: const TextStyle(fontSize: 12)),
             const SizedBox(height: 4),
             Text('KES ${Helpers.formatAmount(payment.amount ?? 0)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),

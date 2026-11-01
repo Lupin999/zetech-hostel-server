@@ -1,6 +1,6 @@
 import { Dialog, DialogTitle, DialogContent, DialogActions, Typography, TextField, Button } from '@mui/material';
 import { PhoneAndroid } from '@mui/icons-material';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, formatRoomNumber } from '../../utils/helpers';
 
 export default function MpesaDialog({ open, onClose, booking, phone, setPhone, onPay, submitting }) {
     return (
@@ -10,7 +10,7 @@ export default function MpesaDialog({ open, onClose, booking, phone, setPhone, o
             </DialogTitle>
             <DialogContent>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Room {booking?.room_number} • Booking Fee: {booking ? formatCurrency(booking.price) : formatCurrency(30000)} • Min Deposit: KES 12,000
+                    Room {formatRoomNumber(booking?.room_number)} • Booking Fee: {booking ? formatCurrency(booking.price) : formatCurrency(30000)} • Min Deposit: KES 12,000
                 </Typography>
                 <TextField placeholder="Phone Number (07XXXXXXXX)" fullWidth
                     value={phone} onChange={e => setPhone(e.target.value)}

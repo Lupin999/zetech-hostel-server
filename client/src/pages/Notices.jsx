@@ -3,7 +3,7 @@ import { Campaign } from '@mui/icons-material';
 import useNotices from '../hooks/useNotices';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
-import { formatDate } from '../utils/helpers';
+import { formatDate, formatHostelName } from '../utils/helpers';
 import titleImg from '../title.jpg';
 
 export default function Notices() {
@@ -36,8 +36,8 @@ export default function Notices() {
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Typography variant="h6">{n.title}</Typography>
                                         {n.target && n.target !== 'all' && (
-                                            <Chip label={n.target === 'boys' ? '🏠 Boys' : '🏠 Girls'}
-                                                size="small" color={n.target === 'boys' ? 'primary' : 'secondary'}
+                                            <Chip label={`🏠 ${formatHostelName(n.target)}`}
+                                                size="small" color={n.target?.toLowerCase() === 'boys' ? 'primary' : 'secondary'}
                                                 sx={{ height: 22, fontSize: '0.7rem' }} />
                                         )}
                                     </Box>

@@ -52,7 +52,7 @@ class BookingCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Room ${booking.roomNumber ?? ''}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('Room ${Helpers.formatRoomNumber(booking.roomNumber)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 StatusChip(status: booking.status ?? ''),
               ],
             ),
@@ -64,11 +64,12 @@ class BookingCard extends StatelessWidget {
                 color: booking.hostel?.toLowerCase().contains('girl') == true ? Colors.pink.shade100 : Colors.blue.shade100,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(booking.hostel ?? '', style: const TextStyle(fontSize: 12)),
+              child: Text(Helpers.formatHostelName(booking.hostel), style: const TextStyle(fontSize: 12)),
             ),
             const SizedBox(height: 12),
             // Details grid
-            _detailRow(Icons.king_bed, 'Bed ${booking.bedNumber ?? ''} (${booking.bedPosition ?? ''})'),
+            if (booking.bedNumber != null && booking.bedNumber != 0)
+              _detailRow(Icons.king_bed, 'Bed ${booking.bedNumber} (${booking.bedPosition ?? ''})'),
             _detailRow(Icons.school, booking.semester ?? ''),
             _detailRow(Icons.calendar_today, 'Arrival: ${Helpers.formatDate(booking.arrivalDate)}'),
             _detailRow(Icons.access_time, 'Booked: ${Helpers.formatDate(booking.createdAt)}'),

@@ -476,8 +476,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text('Room: ${b.roomNumber ?? ''} • Bed: ${b.bedNumber ?? ''}'),
-              Text('Hostel: ${b.hostel ?? ''}'),
+              Text(
+                'Room: ${Helpers.formatRoomNumber(b.roomNumber)}'
+                '${b.bedNumber == null || b.bedNumber == 0 ? '' : ' • Bed: ${b.bedNumber}'}',
+              ),
+              Text('Hostel: ${Helpers.formatHostelName(b.hostel)}'),
               Text('Semester: ${b.semester ?? ''}'),
               Text('Arrival: ${Helpers.formatDate(b.arrivalDate)}'),
               const SizedBox(height: 12),
