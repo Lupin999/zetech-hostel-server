@@ -1,5 +1,8 @@
 const mysql = require('mysql2/promise');
 
+const sslEnabled = process.env.DB_SSL === 'true'
+    || (process.env.NODE_ENV === 'production' && process.env.DB_SSL !== 'false');
+
 const pool = mysql.createPool({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT || 3306,
@@ -8,11 +11,9 @@ const pool = mysql.createPool({
     database: process.env.DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
-    // SSL: set DB_SSL=true in .env to enable.
-    // rejectUnauthorized defaults to true (verifies the server certificate).
-    // Only set DB_SSL_REJECT_UNAUTHORIZED=false if you are connecting to a
-    // self-signed cert and you understand the MITM risk.
-    ssl: process.env.DB_SSL === 'true'
+    // Production connections use verified TLS by default. Local development
+    // can opt in with DB_SSL=true; DB_SSL=false explicitly disables TLS.
+    ssl: sslEnabled
         ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
         : false,
 });

@@ -11,7 +11,10 @@ const startPeriodScheduler = () => {
             const closed = await operationsModel.closeExpiredPeriods();
             if (closed) logger.info('HOSTEL PERIODS CLOSED', { count: closed });
         } catch (error) {
-            logger.error('HOSTEL PERIOD SCHEDULER ERROR', { message: error.message });
+            logger.error('HOSTEL PERIOD SCHEDULER ERROR', {
+                message: error.message,
+                stack: error.stack,
+            });
         } finally {
             running = false;
         }

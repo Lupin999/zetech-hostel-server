@@ -14,7 +14,10 @@ function authenticateToken(req, res, next) {
             req.user = { ...user, role: users[0].role };
             next();
         } catch (error) {
-            logger.error('AUTHENTICATE TOKEN ERROR', { message: error.message });
+            logger.error('AUTHENTICATE TOKEN ERROR', {
+                message: error.message,
+                stack: error.stack,
+            });
             res.status(500).json({ error: 'Could not verify account access' });
         }
     });
