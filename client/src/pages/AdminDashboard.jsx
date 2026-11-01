@@ -484,7 +484,7 @@ export default function AdminDashboard() {
                     </Typography>
                     <TextField label="Email" type="email" fullWidth value={profileForm.email}
                         onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
-                        placeholder="admin@zetech.ac.ke" />
+                        autoComplete="email" />
                     <TextField label="Phone Number" fullWidth value={profileForm.phone}
                         onChange={e => setProfileForm({ ...profileForm, phone: e.target.value.replace(/[^0-9+]/g, '') })}
                         placeholder="+254"

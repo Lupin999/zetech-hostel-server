@@ -63,7 +63,7 @@ export default function CreateAdmin() {
                                 value={form.phoneNumber} onChange={update('phoneNumber')}
                                 inputProps={{ inputMode: 'numeric' }} />
                         </Box>
-                        <TextField label="Email" type="email" fullWidth sx={{ mb: 2 }} value={form.email} onChange={update('email')} />
+                        <TextField label="Email" type="email" autoComplete="email" placeholder="you@example.com" fullWidth sx={{ mb: 2 }} value={form.email} onChange={update('email')} />
                         <TextField
                             label="Password"
                             type={showPassword ? 'text' : 'password'}

@@ -93,7 +93,7 @@ export default function Register() {
                     <form onSubmit={handleSubmit}>
                         <TextField placeholder="Full Name" fullWidth sx={inputSx} value={form.full_name} onChange={update('full_name')}
                             error={!!errors.full_name} helperText={errors.full_name} />
-                        <TextField placeholder="Email" type="email" fullWidth sx={inputSx} value={form.email} onChange={update('email')}
+                        <TextField placeholder="you@example.com" type="email" autoComplete="email" fullWidth sx={inputSx} value={form.email} onChange={update('email')}
                             error={!!errors.email} helperText={errors.email} />
                         <TextField select label="Programme" fullWidth sx={{
                             ...inputSx,
