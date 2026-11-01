@@ -68,7 +68,7 @@ function AppRoutes({ showSplash, onSplashDone }) {
                     <Route path="/create-admin" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><CreateAdmin /></PageTransition>} />
                     <Route path="/forgot-password" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><ForgotPassword /></PageTransition>} />
                     <Route path="/dashboard" element={<StudentRoute><Dashboard /></StudentRoute>} />
-                    <Route path="/profile" element={<StudentRoute><Profile /></StudentRoute>} />
+                    <Route path="/profile" element={user?.role === 'student' ? <StudentRoute><Profile /></StudentRoute> : <AdminRoute allowAccounts><Profile /></AdminRoute>} />
 
                     <Route path="/my-bookings" element={<StudentRoute><MyBookings /></StudentRoute>} />
                     <Route path="/notices" element={<StudentRoute><Notices /></StudentRoute>} />

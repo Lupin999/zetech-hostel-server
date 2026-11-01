@@ -43,7 +43,10 @@ class BedCard extends StatelessWidget {
             children: [
               Icon(Icons.king_bed, size: 32, color: isSelected ? AppTheme.secondary : AppTheme.primary),
               const SizedBox(height: 6),
-              Text('Bed ${bed.bedNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                bed.bedNumber == null ? 'Bed' : 'Bed ${bed.bedNumber}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

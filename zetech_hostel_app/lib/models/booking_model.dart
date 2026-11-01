@@ -9,7 +9,7 @@ class Booking {
   final bool? suspended;
   final String? roomNumber;
   final String? hostel;
-  final int? bedNumber;
+  final String? bedNumber;
   final String? bedPosition;
   final double? price;
   final String? createdAt;
@@ -27,11 +27,23 @@ class Booking {
     suspended: json['suspended'],
     roomNumber: (json['roomNumber'] ?? json['room_number'])?.toString(),
     hostel: json['hostel']?.toString(),
-    bedNumber: json['bedNumber'] ?? json['bed_number'],
+    bedNumber: _readBedNumber(json['bedNumber'] ?? json['bed_number']),
     bedPosition: (json['bedPosition'] ?? json['bed_position'] ?? json['position'])?.toString(),
-    price: (json['price'] as num?)?.toDouble(),
+    price: _readDouble(json['price']),
     createdAt: (json['createdAt'] ?? json['created_at'])?.toString(),
   );
+
+  static String? _readBedNumber(dynamic value) {
+    final bedNumber = value?.toString().trim();
+    return bedNumber == null || bedNumber.isEmpty || bedNumber == '0'
+        ? null
+        : bedNumber;
+  }
+
+  static double? _readDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return value == null ? null : double.tryParse(value.toString());
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,

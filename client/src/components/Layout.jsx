@@ -24,6 +24,7 @@ const studentLinks = [
 const adminLinks = [
     { label: 'Admin Panel', path: '/admin' },
     { label: 'Operations', path: '/operations' },
+    { label: 'Profile', path: '/profile' },
 ];
 
 export default function Layout({ children }) {
@@ -51,7 +52,7 @@ export default function Layout({ children }) {
 
     const handleLogout = () => { logout(); navigate('/login'); };
     const links = user?.role === 'accounts'
-        ? adminLinks.filter(link => link.path === '/operations')
+        ? adminLinks.filter(link => ['/operations', '/profile'].includes(link.path))
         : ['admin', 'warden'].includes(user?.role) ? adminLinks : studentLinks;
     const navTo = (path) => { navigate(path); setDrawerOpen(false); };
 

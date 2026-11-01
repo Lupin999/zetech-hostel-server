@@ -107,9 +107,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
 
     setState(() { _loading = true; _error = null; _fieldError = null; });
+    final auth = context.read<AuthProvider>();
     try {
-      await context.read<AuthProvider>().login(email, password);
-      if (mounted) context.go('/dashboard');
+      await auth.login(email, password);
+      if (mounted) context.go(auth.homeRoute);
     } catch (e) {
       setState(() { _error = e.toString().replaceFirst('Exception: ', ''); });
     }
@@ -157,9 +158,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final fullPhone = _countryCode + (phone.startsWith('0') ? phone.substring(1) : phone);
 
     setState(() { _loading = true; _error = null; _fieldError = null; });
+    final auth = context.read<AuthProvider>();
     try {
-      await context.read<AuthProvider>().verifyOtp(fullPhone, otp);
-      if (mounted) context.go('/dashboard');
+      await auth.verifyOtp(fullPhone, otp);
+      if (mounted) context.go(auth.homeRoute);
     } catch (e) {
       setState(() { _error = e.toString().replaceFirst('Exception: ', ''); });
     }

@@ -186,8 +186,12 @@ export default function OperationsDashboard() {
         } catch (error) { toast.error(error.response?.data?.error || 'Could not update room status'); }
     };
 
-    const updateRole = async (id, role) => {
-        try { await api.patch(`/operations/students/${id}/role`, { role }); await load(); toast.success('Role updated'); }
+    const updateRole = async (student, role) => {
+        try {
+            await api.patch(`/operations/students/${student.id}/role`, { role });
+            await load();
+            toast.success(`${student.full_name}'s role changed to ${role}.`);
+        }
         catch (error) { toast.error(error.response?.data?.error || 'Could not update role'); }
     };
 
@@ -281,7 +285,7 @@ export default function OperationsDashboard() {
             <TextField label="Search students" size="small" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') load(); }} sx={{ mb: 2, minWidth: 280 }} />
             <Button onClick={load} sx={{ ml: 1, mt: 0.5 }}>Search</Button>
             <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Student', 'Registration', 'Email', 'Phone', 'Current room', 'Role'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.email}</TableCell><TableCell>{row.phone || '—'}</TableCell><TableCell>{row.current_room || '—'}</TableCell><TableCell><TextField select size="small" value={row.role} onChange={e => updateRole(row.id, e.target.value)} disabled={row.id === user.id} sx={{ minWidth: 120 }}>{['student', 'admin', 'accounts', 'warden'].map(role => <MenuItem key={role} value={role}>{role}</MenuItem>)}</TextField></TableCell></TableRow>)}
+                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.email}</TableCell><TableCell>{row.phone || '—'}</TableCell><TableCell>{row.current_room || '—'}</TableCell><TableCell><TextField select size="small" value={row.role} onChange={e => updateRole(row, e.target.value)} disabled={row.id === user.id} sx={{ minWidth: 120 }}>{['student', 'admin', 'accounts', 'warden'].map(role => <MenuItem key={role} value={role}>{role}</MenuItem>)}</TextField></TableCell></TableRow>)}
                     {!rows.length && <TableRow><TableCell colSpan={6} align="center">No students found</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 

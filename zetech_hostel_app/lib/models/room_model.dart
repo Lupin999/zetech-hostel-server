@@ -18,11 +18,16 @@ class Room {
     campus: json['campus']?.toString(),
     roomType: (json['roomType'] ?? json['room_type'])?.toString(),
     capacity: json['capacity'] is int ? json['capacity'] : int.tryParse(json['capacity']?.toString() ?? ''),
-    price: (json['price'] as num?)?.toDouble(),
+    price: _readDouble(json['price']),
     status: json['status']?.toString(),
     // Server returns the field as 'occupied' (count of approved bookings)
     occupiedBeds: json['occupied'] ?? json['occupiedBeds'] ?? json['occupied_beds'] ?? 0,
   );
+
+  static double? _readDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return value == null ? null : double.tryParse(value.toString());
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,

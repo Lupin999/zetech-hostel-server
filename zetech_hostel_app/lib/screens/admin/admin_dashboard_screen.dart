@@ -164,6 +164,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // Stats
   int get _bedsTaken => _bookingsRaw.where((b) => b['status'] == 'approved').length;
+  int get _totalBeds => _rooms.fold(0, (total, room) => total + (room.capacity ?? 0));
   int get _pendingCount => _bookingsRaw.where((b) => b['status'] == 'pending').length;
   int get _approvedCount => _bookingsRaw.where((b) => b['status'] == 'approved').length;
   int get _rejectedCount => _bookingsRaw.where((b) => b['status'] == 'rejected').length;
@@ -173,12 +174,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _approveBooking(Map<String, dynamic> b) {
     AwesomeDialog(
       context: context, dialogType: DialogType.question,
-      title: 'Approve Booking', desc: 'Approve booking for Room ${b['roomNumber']}?',
+      title: 'Approve Booking', desc: 'Approve booking for Room ${b['room_number'] ?? b['roomNumber'] ?? '—'}?',
       btnOkText: 'Approve', btnCancelText: 'Cancel',
       btnOkOnPress: () async {
         try {
           await ApiClient.put('${ApiConfig.bookings}/${b['_id'] ?? b['id']}/status', body: {'status': 'approved'});
-          Fluttertoast.showToast(msg: 'Booking approved', backgroundColor: Colors.green);
+          Fluttertoast.showToast(
+            msg: '${b['full_name'] ?? 'Student'} · Room ${b['room_number'] ?? b['roomNumber'] ?? '—'} booking approved',
+            backgroundColor: Colors.green,
+          );
           _fetchBookings();
         } catch (e) { _showError(e); }
       },
@@ -197,9 +201,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       btnOkText: 'Reject', btnOkColor: Colors.red, btnCancelText: 'Cancel',
       btnOkOnPress: () async {
+        final reason = reasonController.text.trim();
+        if (reason.length < 5) {
+          Fluttertoast.showToast(msg: 'Enter a rejection reason with at least 5 characters');
+          return;
+        }
         try {
-          await ApiClient.put('${ApiConfig.bookings}/${b['_id'] ?? b['id']}/status', body: {'status': 'rejected', 'reason': reasonController.text});
-          Fluttertoast.showToast(msg: 'Booking rejected', backgroundColor: Colors.red);
+          await ApiClient.put(
+            '${ApiConfig.bookings}/${b['_id'] ?? b['id']}/status',
+            body: {'status': 'rejected', 'reason': reason},
+          );
+          Fluttertoast.showToast(
+            msg: '${b['full_name'] ?? 'Student'} · Room ${b['room_number'] ?? b['roomNumber'] ?? '—'} booking rejected',
+            backgroundColor: Colors.red,
+          );
           _fetchBookings();
         } catch (e) { _showError(e); }
       },
@@ -402,7 +417,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin Dashboard'),
-          actions: [IconButton(icon: const Icon(Icons.logout), onPressed: _showLogoutDialog)],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.person),
+              tooltip: 'Profile',
+              onPressed: () => context.go('/profile'),
+            ),
+            IconButton(icon: const Icon(Icons.logout), onPressed: _showLogoutDialog),
+          ],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [
@@ -432,9 +454,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       padding: const EdgeInsets.all(12),
                       children: [
                         StatCard(icon: Icons.hotel, label: 'Total Rooms', value: '${_rooms.length}', backgroundColor: AppTheme.primary),
-                        StatCard(icon: Icons.king_bed, label: 'Total Beds', value: '48', backgroundColor: Colors.purple),
+                        StatCard(icon: Icons.king_bed, label: 'Total Beds', value: '$_totalBeds', backgroundColor: Colors.purple),
                         StatCard(icon: Icons.people, label: 'Beds Taken', value: '$_bedsTaken', backgroundColor: Colors.red),
-                        StatCard(icon: Icons.check_circle, label: 'Beds Free', value: '${48 - _bedsTaken}', backgroundColor: Colors.green),
+                        StatCard(icon: Icons.check_circle, label: 'Beds Free', value: '${(_totalBeds - _bedsTaken).clamp(0, _totalBeds)}', backgroundColor: Colors.green),
                       ],
                     ),
                   ),

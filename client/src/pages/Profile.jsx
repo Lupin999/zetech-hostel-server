@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Typography, Paper, Box, Chip, TextField, Button, CircularProgress, Grid, Collapse, MenuItem } from '@mui/material';
-import { Edit, LocalHospital, Lock, Phone, PersonOutline, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { Typography, Paper, Box, Chip, TextField, Button, CircularProgress, Grid, Collapse, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Alert } from '@mui/material';
+import { LocalHospital, Lock, Phone, PersonOutline, ExpandMore, ExpandLess, DeleteForever } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 import dImg from '../d.jpg';
 
 export default function Profile() {
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, logout } = useAuth();
+    const navigate = useNavigate();
     const [health, setHealth] = useState({ medical_conditions: '', dietary_restrictions: '' });
     const [saving, setSaving] = useState(false);
     const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -20,6 +22,9 @@ export default function Profile() {
     const [editingProfile, setEditingProfile] = useState(false);
     const [editingHealth, setEditingHealth] = useState(false);
     const [editingPassword, setEditingPassword] = useState(false);
+    const [deleteDialog, setDeleteDialog] = useState(false);
+    const [deletePassword, setDeletePassword] = useState('');
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     useEffect(() => {
         if (user) setProfileForm({ full_name: user.full_name || '', course: user.course || '', phone: user.phone || '' });
@@ -71,6 +76,21 @@ export default function Profile() {
             setEditingPassword(false);
         } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
         finally { setPwLoading(false); }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!deletePassword) return toast.error('Enter your current password to confirm');
+        setDeleteLoading(true);
+        try {
+            await api.delete('/auth/account', { data: { currentPassword: deletePassword } });
+            logout();
+            toast.success('Your account and linked booking/payment records were permanently deleted.');
+            navigate('/login', { replace: true });
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Could not delete the account');
+        } finally {
+            setDeleteLoading(false);
+        }
     };
 
     return (
@@ -237,6 +257,15 @@ export default function Profile() {
                             </form>
                         </Collapse>
                     </Paper>
+                    <Paper sx={{ p: 3, mt: 3, border: '1px solid', borderColor: 'error.light' }}>
+                        <Typography variant="h6" color="error.main" gutterBottom>Delete account</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            Permanently remove your account and linked records, including bookings, payment history, receipts, service requests, and notices you posted. This cannot be undone.
+                        </Typography>
+                        <Button color="error" variant="outlined" startIcon={<DeleteForever />} onClick={() => setDeleteDialog(true)}>
+                            Delete my account
+                        </Button>
+                    </Paper>
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 4 }}>
@@ -255,6 +284,22 @@ export default function Profile() {
                     </Paper>
                 </Grid>
             </Grid>
+            <Dialog open={deleteDialog} onClose={() => !deleteLoading && setDeleteDialog(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Delete your account permanently?</DialogTitle>
+                <DialogContent>
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                        Your bookings, payment history, receipts, service requests, and notices you posted will also be deleted. This cannot be reversed.
+                    </Alert>
+                    <TextField autoFocus fullWidth type="password" label="Current password" value={deletePassword}
+                        onChange={(event) => setDeletePassword(event.target.value)} />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => { setDeleteDialog(false); setDeletePassword(''); }} disabled={deleteLoading}>Cancel</Button>
+                    <Button color="error" variant="contained" onClick={handleDeleteAccount} disabled={deleteLoading}>
+                        {deleteLoading ? <CircularProgress size={20} color="inherit" /> : 'Permanently delete'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </>
     );
 }

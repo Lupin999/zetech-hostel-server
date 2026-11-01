@@ -99,7 +99,7 @@ const approveBooking = async (bookingId) => {
     return { message: 'Booking approved' };
 };
 
-const rejectBooking = async (bookingId) => {
+const rejectBooking = async (bookingId, reason) => {
     const [booking] = await BookingModel.getBookingById(bookingId);
     if (!booking.length) return { error: 'Booking not found', status: 404 };
 
@@ -107,14 +107,14 @@ const rejectBooking = async (bookingId) => {
 
     const b = booking[0];
     await sendNotification(b.user_id,
-        `Sorry, your booking for Room ${b.room_number} has been rejected. Please contact the hostel office for more information.`,
+        `Your booking for Room ${b.room_number} has been rejected.${reason ? ` Reason: ${reason.trim()}` : ''}`,
         'booking'
     );
     if (b.bed_id) {
         await RoomModel.updateBedStatus(b.bed_id, 'available');
     }
 
-    return { message: 'Booking rejected' };
+    return { message: 'Booking rejected', reason: reason?.trim() || null };
 };
 
 const suspendBooking = async (bookingId, suspended, reason) => {

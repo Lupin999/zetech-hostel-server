@@ -10,7 +10,7 @@ const getTheme = (mode) => createTheme({
     palette: {
         mode,
         primary: { main: '#1a237e', light: '#534bae', dark: '#000051' },
-        secondary: { main: '#FFD700', light: '#ffe44d', dark: '#c7a600' },
+        secondary: { main: '#f57c00', light: '#ffad42', dark: '#bb4d00' },
         ...(mode === 'dark' ? {
             background: { default: '#0d1b2a', paper: '#111827' },
             text: { primary: '#f1f5f9', secondary: '#94a3b8' },
@@ -31,7 +31,7 @@ const getTheme = (mode) => createTheme({
         MuiPaper: { styleOverrides: { root: { boxShadow: mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.4)' : '0 2px 12px rgba(0,0,0,0.08)' } } },
         MuiContainer: { styleOverrides: { root: { paddingLeft: 16, paddingRight: 16, '@media (min-width:600px)': { paddingLeft: 24, paddingRight: 24 } } } },
         MuiAppBar: { styleOverrides: { root: { backgroundColor: mode === 'dark' ? 'rgba(17,24,39,0.9)' : '#1a237e', backdropFilter: 'blur(10px)' } } },
-        MuiCssBaseline: { styleOverrides: { a: { color: mode === 'dark' ? '#FFD700' : '#1a237e' } } },
+        MuiCssBaseline: { styleOverrides: { a: { color: mode === 'dark' ? '#ffad42' : '#1a237e' } } },
     },
 });
 

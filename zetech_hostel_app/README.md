@@ -1,17 +1,15 @@
-# zetech_hostel_app
+# Zetech Hostel App
 
-A new Flutter project.
+## Production API and images
 
-## Getting Started
+The app's bundled photos live in `assets/images/` and are declared in
+`pubspec.yaml`, so they are packaged into the app and do not need an internet
+connection. Build production releases with the deployed HTTPS API address:
 
-This project is a starting point for a Flutter application.
+```powershell
+flutter build apk --release --dart-define=API_BASE_URL=https://your-api-host/api
+```
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Without `API_BASE_URL`, a production build reports a configuration error; the
+local Android emulator URL is only for development. Photos served by the
+backend must use its HTTPS `/assets/...` URL rather than a local file path.

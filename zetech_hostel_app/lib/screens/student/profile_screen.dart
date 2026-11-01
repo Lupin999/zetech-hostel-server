@@ -6,9 +6,11 @@ import 'package:provider/provider.dart';
 import '../../config/api_config.dart';
 import '../../config/app_theme.dart';
 import '../../models/health_model.dart';
+import '../../models/payment_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/api_client.dart';
+import '../../utils/helpers.dart';
 import '../../widgets/common/custom_button.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../../widgets/common/loading_spinner.dart';
@@ -25,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _savingProfile = false;
   bool _savingHealth = false;
   bool _changingPassword = false;
+  bool _deletingAccount = false;
   List<dynamic> _bookings = [];
   List<dynamic> _payments = [];
   HealthProfile? _healthProfile;
@@ -39,6 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _deletePasswordController = TextEditingController();
 
   bool _currentPwVisible = false;
   bool _newPwVisible = false;
@@ -62,6 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
+    _deletePasswordController.dispose();
     super.dispose();
   }
 
@@ -190,6 +195,139 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() { _changingPassword = false; });
   }
 
+  Future<void> _viewReceipt(Payment payment) async {
+    if (payment.id == null) return;
+    try {
+      final response = await ApiClient.get(
+        ApiConfig.paymentReceipt(payment.id),
+      );
+      if (!mounted) return;
+      final receipt = Map<String, dynamic>.from(response);
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Payment receipt'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _receiptLine('Receipt', receipt['id']),
+              _receiptLine('Student', receipt['full_name']),
+              _receiptLine('Registration number', receipt['reg_no']),
+              _receiptLine(
+                'Amount',
+                'KES ${Helpers.formatAmount((receipt['amount'] as num?) ?? 0)}',
+              ),
+              _receiptLine('Method', payment.paymentMethodLabel),
+              _receiptLine('M-Pesa code', receipt['mpesa_code']),
+              _receiptLine('Status', receipt['status']),
+              _receiptLine(
+                'Date',
+                Helpers.formatDate(receipt['payment_date']?.toString()),
+              ),
+              _receiptLine(
+                'Room',
+                '${Helpers.formatHostelName(receipt['hostel']?.toString())} '
+                '${Helpers.formatRoomNumber(receipt['room_number']?.toString())}',
+              ),
+              _receiptLine('Semester', receipt['semester']),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.error,
+        title: 'Receipt unavailable',
+        desc: error.toString().replaceFirst('Exception: ', ''),
+        btnOkOnPress: () {},
+      ).show();
+    }
+  }
+
+  Widget _receiptLine(String label, dynamic value) {
+    final text = value?.toString().trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text('$label: ${text == null || text.isEmpty ? '—' : text}'),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    _deletePasswordController.clear();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete your account permanently?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your account and linked records, including bookings, payment '
+              'history, receipts, service requests, and notices you posted, '
+              'will be permanently deleted. This cannot be undone.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _deletePasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Current password'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Permanently delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (_deletePasswordController.text.isEmpty) {
+      Fluttertoast.showToast(msg: 'Enter your current password to confirm');
+      return;
+    }
+
+    final auth = context.read<AuthProvider>();
+    setState(() { _deletingAccount = true; });
+    try {
+      await ApiClient.delete(
+        ApiConfig.deleteAccount,
+        body: {'currentPassword': _deletePasswordController.text},
+      );
+      await auth.logout();
+      if (!mounted) return;
+      Fluttertoast.showToast(msg: 'Your account and linked records were deleted');
+      context.go('/login');
+    } catch (error) {
+      if (!mounted) return;
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.error,
+        title: 'Could not delete account',
+        desc: error.toString().replaceFirst('Exception: ', ''),
+        btnOkOnPress: () {},
+      ).show();
+    } finally {
+      if (mounted) setState(() { _deletingAccount = false; });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -198,7 +336,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Profile'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/dashboard')),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go(
+            ['admin', 'accounts', 'warden'].contains(user?.role)
+                ? '/admin'
+                : '/dashboard',
+          ),
+        ),
       ),
       body: _loading
           ? const LoadingSpinner()
@@ -246,6 +391,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(width: 8),
                         _statCard('Unpaid', _unpaidCount < 0 ? 0 : _unpaidCount, Colors.orange),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Payment history & receipts',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const SizedBox(height: 8),
+                            if (_payments.isEmpty)
+                              const Text('No payment records yet.')
+                            else
+                              ..._payments.map((rawPayment) {
+                                final payment = Payment.fromJson(
+                                  Map<String, dynamic>.from(rawPayment),
+                                );
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    'KES ${Helpers.formatAmount(payment.amount ?? 0)} · ${payment.status ?? 'Pending'}',
+                                  ),
+                                  subtitle: Text(
+                                    '${Helpers.formatHostelName(payment.hostel)} '
+                                    '${Helpers.formatRoomNumber(payment.roomNumber)} · '
+                                    '${Helpers.formatDate(payment.paymentDate)}',
+                                  ),
+                                  trailing: payment.status == 'confirmed'
+                                      ? TextButton(
+                                          onPressed: () => _viewReceipt(payment),
+                                          child: const Text('Receipt'),
+                                        )
+                                      : null,
+                                );
+                              }),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -341,6 +527,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             Text('At least 6 characters; letters and numbers only, with at least one capital letter and one number. For better security, choose a unique password of 12+ characters.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                             const SizedBox(height: 16),
                             CustomButton(label: 'Change Password', isLoading: _changingPassword, onPressed: _changingPassword ? null : _changePassword),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Card(
+                      color: Colors.red.withOpacity(0.06),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Delete account',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Permanently delete your account and linked '
+                              'booking, payment, and service records.',
+                            ),
+                            const SizedBox(height: 12),
+                            CustomButton(
+                              label: 'Delete my account',
+                              isLoading: _deletingAccount,
+                              onPressed: _deletingAccount
+                                  ? null
+                                  : _confirmDeleteAccount,
+                            ),
                           ],
                         ),
                       ),

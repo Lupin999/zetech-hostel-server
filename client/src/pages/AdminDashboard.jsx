@@ -105,11 +105,33 @@ export default function AdminDashboard() {
         );
     };
 
-    const handleStatus = async (id, status) => {
+    const handleStatus = async (booking, status) => {
         const action = status === 'approved' ? 'Approve' : 'Reject';
-        const r = await Swal.fire({ title: `${action} this booking?`, icon: 'question', showCancelButton: true, confirmButtonColor: status === 'approved' ? '#43a047' : '#e53935', confirmButtonText: `Yes, ${action.toLowerCase()}` });
+        const r = await Swal.fire({
+            title: `${action} this booking?`,
+            text: status === 'approved' ? undefined : 'Give the student a clear reason for the rejection.',
+            input: status === 'rejected' ? 'textarea' : undefined,
+            inputPlaceholder: status === 'rejected' ? 'Enter the rejection reason' : undefined,
+            inputValidator: status === 'rejected'
+                ? (value) => value?.trim().length >= 5 ? undefined : 'Enter a reason with at least 5 characters.'
+                : undefined,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: status === 'approved' ? '#43a047' : '#e53935',
+            confirmButtonText: `Yes, ${action.toLowerCase()}`,
+        });
         if (!r.isConfirmed) return;
-        try { await api.put(`/bookings/${id}/status`, { status }); fetchData(); Swal.fire({ icon: 'success', title: `Booking ${status}!`, timer: 1500, confirmButtonColor: '#1a237e' }); }
+        try {
+            await api.put(`/bookings/${booking.id}/status`, { status, reason: r.value });
+            fetchData();
+            Swal.fire({
+                icon: 'success',
+                title: `Booking ${status}`,
+                text: `${booking.full_name}'s booking for ${formatHostelName(booking.hostel)} Hostel, Room ${formatRoomNumber(booking.room_number)}, was ${status}.`,
+                timer: 2500,
+                confirmButtonColor: '#1a237e',
+            });
+        }
         catch (err) { Swal.fire({ icon: 'error', title: 'Failed', text: err.response?.data?.error || 'Error', confirmButtonColor: '#1a237e' }); }
     };
 
@@ -317,7 +339,7 @@ export default function AdminDashboard() {
                                     <TableCell><Chip label={b.status} size="small" color={b.status === 'approved' ? 'success' : b.status === 'rejected' ? 'error' : 'warning'} /></TableCell>
                                     <TableCell>{hasPayment ? <Chip label={b.payment_status === 'confirmed' ? 'Paid' : 'Pending'} size="small" color={b.payment_status === 'confirmed' ? 'success' : 'warning'} variant="outlined" /> : '—'}</TableCell>
                                     <TableCell>
-                                    {b.status === 'pending' && <Box sx={{ display: 'flex', gap: 0.5 }}><Button size="small" color="success" variant="contained" onClick={() => handleStatus(b.id, 'approved')} sx={{ bgcolor: '#2e7d32', boxShadow: '0 4px 12px rgba(46,125,50,0.35)', color: '#fff', '&:hover': { bgcolor: '#256629' } }}>Approve</Button><Button size="small" color="error" variant="outlined" onClick={() => handleStatus(b.id, 'rejected')} sx={{ borderWidth: 2, fontWeight: 700 }}>Reject</Button></Box>}
+                                    {b.status === 'pending' && <Box sx={{ display: 'flex', gap: 0.5 }}><Button size="small" color="success" variant="contained" onClick={() => handleStatus(b, 'approved')} sx={{ bgcolor: '#2e7d32', boxShadow: '0 4px 12px rgba(46,125,50,0.35)', color: '#fff', '&:hover': { bgcolor: '#256629' } }}>Approve</Button><Button size="small" color="error" variant="outlined" onClick={() => handleStatus(b, 'rejected')} sx={{ borderWidth: 2, fontWeight: 700 }}>Reject</Button></Box>}
                                     {user?.role !== 'warden' && b.status === 'approved' && b.payment_status === 'pending' && <Button size="small" color="success" variant="contained" onClick={() => handleConfirmPayment(b.id)} sx={{ bgcolor: '#1e88e5', boxShadow: '0 4px 12px rgba(30,136,229,0.35)', color: '#fff', '&:hover': { bgcolor: '#1565c0' } }}>Confirm Pay</Button>}
                                     {b.status === 'approved' && !b.suspended && (
                                         <Button size="small" color="warning" variant="contained" sx={{ ml: 0.5, bgcolor: '#f9a825', color: '#111', fontWeight: 700, boxShadow: '0 4px 12px rgba(249,168,37,0.35)', '&:hover': { bgcolor: '#f59e0b' } }}

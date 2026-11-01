@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const pool = require('../config/db');
 const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
 const logger = require('../utils/logger');
@@ -57,6 +58,95 @@ const loginUser = async (email, password) => {
 
     const token = createToken(user);
     return { token, user: formatUser(user) };
+};
+
+const deleteAccount = async (userId, currentPassword) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        const [users] = await connection.query(
+            'SELECT id, role, phone, password_hash FROM users WHERE id = ? FOR UPDATE',
+            [userId]
+        );
+        if (!users.length) {
+            await connection.rollback();
+            return { error: 'Account not found', status: 404 };
+        }
+
+        const user = users[0];
+        if (!await bcrypt.compare(currentPassword, user.password_hash)) {
+            await connection.rollback();
+            return { error: 'Current password is incorrect', status: 400 };
+        }
+
+        if (user.role === 'admin') {
+            const [admins] = await connection.query("SELECT id FROM users WHERE role = 'admin' FOR UPDATE");
+            if (admins.length <= 1) {
+                await connection.rollback();
+                return { error: 'The last admin account cannot be deleted', status: 409 };
+            }
+        }
+
+        const [bookings] = await connection.query(
+            'SELECT id FROM bookings WHERE user_id = ? FOR UPDATE',
+            [userId]
+        );
+        const bookingIds = bookings.map((booking) => booking.id);
+        const placeholders = bookingIds.map(() => '?').join(', ');
+        const bookingList = placeholders || 'NULL';
+        const [payments] = bookingIds.length
+            ? await connection.query(`SELECT id FROM payments WHERE booking_id IN (${placeholders}) FOR UPDATE`, bookingIds)
+            : [[]];
+        const paymentIds = payments.map((payment) => payment.id);
+        const paymentPlaceholders = paymentIds.map(() => '?').join(', ');
+        const paymentList = paymentPlaceholders || 'NULL';
+        const [occupiedBeds] = await connection.query(
+            `SELECT bed_id FROM bookings
+             WHERE user_id = ? AND status = 'approved' AND checked_out_at IS NULL AND bed_id IS NOT NULL
+             FOR UPDATE`,
+            [userId]
+        );
+        const bedIds = [...new Set(occupiedBeds.map((booking) => booking.bed_id))];
+        if (bedIds.length) {
+            const bedPlaceholders = bedIds.map(() => '?').join(', ');
+            await connection.query(
+                `UPDATE beds SET status = 'available' WHERE id IN (${bedPlaceholders})`,
+                bedIds
+            );
+        }
+
+        await connection.query(
+            `DELETE FROM refund_requests
+             WHERE requested_by = ? OR payment_id IN (${paymentList})`,
+            [userId, ...paymentIds]
+        );
+        await connection.query(
+            `DELETE FROM checkout_requests
+             WHERE user_id = ? OR booking_id IN (${bookingList})`,
+            [userId, ...bookingIds]
+        );
+        await connection.query('DELETE FROM maintenance_requests WHERE user_id = ?', [userId]);
+        await connection.query('DELETE FROM visitor_logs WHERE resident_id = ?', [userId]);
+        await connection.query('DELETE FROM notices WHERE created_by = ?', [userId]);
+        await connection.query('DELETE FROM health_profile WHERE user_id = ?', [userId]);
+        await connection.query('DELETE FROM notifications WHERE user_id = ?', [userId]);
+        if (user.phone) {
+            await connection.query('DELETE FROM otp_codes WHERE phone = ?', [user.phone]);
+        }
+        await connection.query(
+            `DELETE FROM payments WHERE booking_id IN (${bookingList})`,
+            bookingIds
+        );
+        await connection.query('DELETE FROM bookings WHERE user_id = ?', [userId]);
+        await connection.query('DELETE FROM users WHERE id = ?', [userId]);
+        await connection.commit();
+        return { message: 'Account and linked booking/payment records permanently deleted' };
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
 };
 
 const sendOtp = async (phone) => {
@@ -234,4 +324,4 @@ const resetPassword = async (email, code, newPassword) => {
     return { message: 'Password reset successfully. You can now login with your new password.' };
 };
 
-module.exports = { registerUser, registerAdmin, loginUser, sendOtp, verifyOtp, verifyToken, updateProfile, changePassword, forgotPassword, resetPassword };
+module.exports = { registerUser, registerAdmin, loginUser, deleteAccount, sendOtp, verifyOtp, verifyToken, updateProfile, changePassword, forgotPassword, resetPassword };

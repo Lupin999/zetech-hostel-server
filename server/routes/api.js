@@ -81,6 +81,12 @@ router.get('/docs', (req, res) => {
                     body: { currentPassword: 'string', newPassword: 'string (min 6)' },
                     response: { message: 'Password updated successfully' }
                 },
+                'DELETE /api/auth/account': {
+                    description: 'Permanently delete the signed-in account and linked records',
+                    auth: 'required',
+                    body: { currentPassword: 'string (required)' },
+                    response: { message: 'Account and linked booking/payment records permanently deleted' }
+                },
                 'POST /api/auth/create-admin': {
                     description: 'Create admin account (requires admin secret)',
                     body: { email: 'string (required)', full_name: 'string (required)', password: 'string (min 6)', phone: 'string (optional)', adminSecret: 'string (required)' },
@@ -138,15 +144,15 @@ router.get('/docs', (req, res) => {
                     response: '[array of booking objects]'
                 },
                 'GET /api/bookings/all': {
-                    description: 'Get all bookings (admin only)',
-                    auth: 'required (admin)',
+                    description: 'Get all bookings (admin or warden)',
+                    auth: 'required (admin or warden)',
                     response: '[array of booking objects]'
                 },
                 'PUT /api/bookings/:id/status': {
-                    description: 'Approve or reject booking (admin only)',
-                    auth: 'required (admin)',
-                    body: { status: 'approved|rejected' },
-                    response: { message: 'Booking approved/rejected' }
+                    description: 'Approve or reject booking (admin or warden)',
+                    auth: 'required (admin or warden)',
+                    body: { status: 'approved|rejected', reason: 'required on rejection (5-500 characters)' },
+                    response: { message: 'Booking approved/rejected', reason: 'rejection reason or null' }
                 },
                 'PUT /api/bookings/:id/suspend': {
                     description: 'Suspend or unsuspend booking (admin only)',

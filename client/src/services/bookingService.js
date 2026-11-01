@@ -7,7 +7,7 @@ const bookingService = {
     getAllBookings: () => api.get('/bookings/all'),
     createBooking: (data) => api.post('/bookings', data),
     approveBooking: (id) => api.put(`/bookings/${id}/status`, { status: 'approved' }),
-    rejectBooking: (id) => api.put(`/bookings/${id}/status`, { status: 'rejected' }),
+    rejectBooking: (id, reason) => api.put(`/bookings/${id}/status`, { status: 'rejected', reason }),
     cancelBooking: (id) => api.delete(`/bookings/${id}`),
     toggleBookings: (open) => api.put('/bookings/toggle', { open }),
 };

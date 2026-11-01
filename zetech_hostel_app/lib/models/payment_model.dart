@@ -18,7 +18,7 @@ class Payment {
   factory Payment.fromJson(Map<String, dynamic> json) => Payment(
     id: (json['_id'] ?? json['id'])?.toString(),
     bookingId: (json['bookingId'] ?? json['booking_id'])?.toString(),
-    amount: (json['amount'] as num?)?.toDouble(),
+    amount: _readDouble(json['amount']),
     paymentMethod: (json['paymentMethod'] ?? json['payment_method'])?.toString(),
     mpesaCode: (json['mpesaCode'] ?? json['mpesa_code'])?.toString(),
     status: json['status']?.toString(),
@@ -27,6 +27,11 @@ class Payment {
     hostel: json['hostel']?.toString(),
     semester: json['semester']?.toString(),
   );
+
+  static double? _readDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return value == null ? null : double.tryParse(value.toString());
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,

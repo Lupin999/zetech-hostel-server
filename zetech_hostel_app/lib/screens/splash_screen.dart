@@ -51,7 +51,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       await Future.delayed(const Duration(milliseconds: 100));
     }
     if (!mounted) return;
-    context.go(auth.isLoggedIn ? '/dashboard' : '/login');
+    context.go(auth.isLoggedIn ? auth.homeRoute : '/login');
   }
 
   @override

@@ -5,7 +5,7 @@ import {
     Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Alert,
     CircularProgress
 } from '@mui/material';
-import { EventBusy } from '@mui/icons-material';
+import { EventBusy, ReceiptLong } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import useBookings from '../hooks/useBookings';
@@ -18,6 +18,8 @@ import MpesaDialog from '../components/payments/MpesaDialog';
 import { formatDate, formatHostelName, formatRoomNumber } from '../utils/helpers';
 import { useAuth } from '../context/AuthContext';
 import { SCHOOL_PAYBILL } from '../utils/constants';
+import api from '../utils/api';
+import { formatPaymentMethod } from '../utils/helpers';
 
 
 export default function MyBookings() {
@@ -32,6 +34,8 @@ export default function MyBookings() {
     const [phone, setPhone] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [polling, setPolling] = useState(false);
+    const [receipt, setReceipt] = useState(null);
+    const [receiptLoading, setReceiptLoading] = useState(false);
     const pollRef = useRef(null);
 
     const fetchData = () => { fetchMyBookings(); fetchMyPayments(); };
@@ -39,6 +43,50 @@ export default function MyBookings() {
     useEffect(() => { return () => { if (pollRef.current) clearInterval(pollRef.current); }; }, []);
 
     const getPayment = (bookingId) => payments.find(p => p.booking_id === bookingId);
+
+    const viewReceipt = async (payment) => {
+        setReceiptLoading(true);
+        try {
+            const { data } = await api.get(`/operations/payments/${payment.id}/receipt`);
+            setReceipt(data);
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Could not load this payment receipt');
+        } finally {
+            setReceiptLoading(false);
+        }
+    };
+
+    const printReceipt = () => {
+        if (!receipt) return;
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return toast.error('Allow pop-ups to print your receipt');
+        const document = printWindow.document;
+        document.title = `Payment receipt ${receipt.id}`;
+        const style = document.createElement('style');
+        style.textContent = 'body{font:16px Arial,sans-serif;max-width:680px;margin:40px auto;color:#222}h1{color:#1a237e}p{padding:10px 0;border-bottom:1px solid #ddd}';
+        document.head.append(style);
+        const heading = document.createElement('h1');
+        heading.textContent = 'Zetech Hostel — Payment Receipt';
+        document.body.append(heading);
+        [
+            ['Receipt number', receipt.id],
+            ['Student', receipt.full_name],
+            ['Registration number', receipt.reg_no],
+            ['Amount', `KES ${Number(receipt.amount).toLocaleString()}`],
+            ['Payment method', formatPaymentMethod(receipt.payment_method)],
+            ['M-Pesa code', receipt.mpesa_code || '—'],
+            ['Status', receipt.status],
+            ['Date', receipt.payment_date ? new Date(receipt.payment_date).toLocaleString() : '—'],
+            ['Hostel / room', `${formatHostelName(receipt.hostel)} ${formatRoomNumber(receipt.room_number)}`],
+            ['Semester', receipt.semester],
+        ].forEach(([label, value]) => {
+            const row = document.createElement('p');
+            row.textContent = `${label}: ${value ?? '—'}`;
+            document.body.append(row);
+        });
+        printWindow.focus();
+        printWindow.print();
+    };
 
     // M-Pesa STK Push flow
     const handleMpesaPay = async () => {
@@ -191,6 +239,29 @@ export default function MyBookings() {
                 </TableContainer>
             )}
 
+            <Paper sx={{ p: 2, mt: 3 }}>
+                <Typography variant="h6" gutterBottom>Payment history & receipts</Typography>
+                {!payments.length ? (
+                    <Typography color="text.secondary">No payment records yet.</Typography>
+                ) : (
+                    <TableContainer sx={{ overflowX: 'auto' }}>
+                        <Table size="small">
+                            <TableHead><TableRow>{['Date', 'Room', 'Amount', 'Method', 'Status', 'Receipt'].map((label) => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead>
+                            <TableBody>{payments.map((payment) => (
+                                <TableRow key={payment.id}>
+                                    <TableCell>{formatDate(payment.payment_date)}</TableCell>
+                                    <TableCell>{formatHostelName(payment.hostel)} {formatRoomNumber(payment.room_number)}</TableCell>
+                                    <TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell>
+                                    <TableCell>{formatPaymentMethod(payment.payment_method)}</TableCell>
+                                    <TableCell><Chip size="small" label={payment.status === 'confirmed' ? 'Paid' : 'Pending'} color={payment.status === 'confirmed' ? 'success' : 'warning'} /></TableCell>
+                                    <TableCell>{payment.status === 'confirmed' && <Button size="small" startIcon={<ReceiptLong />} onClick={() => viewReceipt(payment)} disabled={receiptLoading}>View receipt</Button>}</TableCell>
+                                </TableRow>
+                            ))}</TableBody>
+                        </Table>
+                    </TableContainer>
+                )}
+            </Paper>
+
             {/* M-Pesa STK Push Dialog */}
             <MpesaDialog open={mpesaOpen} onClose={() => setMpesaOpen(false)} booking={selectedBooking} phone={phone} setPhone={setPhone} onPay={handleMpesaPay} submitting={submitting} />
 
@@ -213,6 +284,27 @@ export default function MyBookings() {
                     <Button variant="contained" onClick={handleManualPay} disabled={submitting}>
                         {submitting ? 'Submitting...' : 'Submit Payment'}
                     </Button>
+                </DialogActions>
+            </Dialog>
+            <Dialog open={Boolean(receipt)} onClose={() => setReceipt(null)} maxWidth="sm" fullWidth>
+                <DialogTitle>Payment receipt</DialogTitle>
+                <DialogContent dividers>
+                    {receipt && <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                        <Typography><strong>Receipt:</strong> {receipt.id}</Typography>
+                        <Typography><strong>Status:</strong> {receipt.status}</Typography>
+                        <Typography><strong>Student:</strong> {receipt.full_name}</Typography>
+                        <Typography><strong>Reg. no.:</strong> {receipt.reg_no}</Typography>
+                        <Typography><strong>Amount:</strong> KES {Number(receipt.amount).toLocaleString()}</Typography>
+                        <Typography><strong>Method:</strong> {formatPaymentMethod(receipt.payment_method)}</Typography>
+                        <Typography><strong>M-Pesa code:</strong> {receipt.mpesa_code || '—'}</Typography>
+                        <Typography><strong>Room:</strong> {formatHostelName(receipt.hostel)} {formatRoomNumber(receipt.room_number)}</Typography>
+                        <Typography><strong>Date:</strong> {receipt.payment_date ? new Date(receipt.payment_date).toLocaleString() : '—'}</Typography>
+                        <Typography><strong>Semester:</strong> {receipt.semester || '—'}</Typography>
+                    </Box>}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setReceipt(null)}>Close</Button>
+                    <Button variant="contained" startIcon={<ReceiptLong />} onClick={printReceipt}>Print receipt</Button>
                 </DialogActions>
             </Dialog>
         </>

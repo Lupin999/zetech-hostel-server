@@ -54,8 +54,8 @@ export default function useBookings({ fetchAll = false } = {}) {
         return res.data;
     }, []);
 
-    const reject = useCallback(async (id) => {
-        const res = await bookingService.rejectBooking(id);
+    const reject = useCallback(async (id, reason) => {
+        const res = await bookingService.rejectBooking(id, reason);
         return res.data;
     }, []);
 

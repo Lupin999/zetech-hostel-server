@@ -68,13 +68,16 @@ router.get('/all', authenticateToken, requireRole('admin', 'warden'), async (req
 router.put('/:id/status', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     try {
-        const { status } = req.body;
+        const { status, reason } = req.body;
         if (!['approved', 'rejected'].includes(status)) {
             return res.status(400).json({ error: 'Status must be approved or rejected' });
         }
+        if (status === 'rejected' && (typeof reason !== 'string' || reason.trim().length < 5 || reason.trim().length > 500)) {
+            return res.status(400).json({ error: 'Provide a rejection reason between 5 and 500 characters' });
+        }
         const result = status === 'approved'
             ? await bookingService.approveBooking(req.params.id)
-            : await bookingService.rejectBooking(req.params.id);
+            : await bookingService.rejectBooking(req.params.id, reason.trim());
         if (result.error) return res.status(result.status).json({ error: result.error });
         res.json(result);
     } catch (error) {

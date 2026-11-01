@@ -221,6 +221,21 @@ router.put('/profile', authenticateToken, async (req, res) => {
     }
 });
 
+router.delete('/account', authenticateToken, async (req, res) => {
+    const { currentPassword } = req.body || {};
+    if (typeof currentPassword !== 'string' || !currentPassword) {
+        return res.status(400).json({ error: 'Current password is required' });
+    }
+    try {
+        const result = await authService.deleteAccount(req.user.id, currentPassword);
+        if (result.error) return res.status(result.status || 400).json({ error: result.error });
+        res.json(result);
+    } catch (error) {
+        logger.error('DELETE ACCOUNT ERROR', { message: error.message, userId: req.user.id });
+        res.status(500).json({ error: 'Could not delete the account. Please try again.' });
+    }
+});
+
 // Forgot password
 router.post('/forgot-password', async (req, res) => {
     try {

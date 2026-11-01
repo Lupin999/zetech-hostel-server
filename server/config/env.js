@@ -7,6 +7,7 @@ const required = [
     'DB_USER',
     'DB_NAME',
     'JWT_SECRET',
+    'ADMIN_SECRET',
     'SMTP_EMAIL',
     'SMTP_PASSWORD',
     'MPESA_CONSUMER_KEY',
@@ -39,5 +40,8 @@ function validateEnv() {
         }
     }
 }
+
+validateEnv.requiredEnvKeys = required;
+validateEnv.recommendedEnvKeys = recommended;
 
 module.exports = validateEnv;

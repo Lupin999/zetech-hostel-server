@@ -87,6 +87,18 @@ class AuthProvider extends ChangeNotifier {
 
   bool get isLoggedIn => token != null;
 
+  String get homeRoute {
+    switch (user?.role?.toLowerCase()) {
+      case 'admin':
+      case 'warden':
+        return '/admin';
+      case 'accounts':
+        return '/operations';
+      default:
+        return '/dashboard';
+    }
+  }
+
   void updateUser(User updatedUser) {
     user = updatedUser;
     notifyListeners();

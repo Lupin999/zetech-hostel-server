@@ -85,9 +85,16 @@ class ApiClient {
     );
   }
 
-  static Future<dynamic> delete(String url) async {
+  static Future<dynamic> delete(
+    String url, {
+    Map<String, dynamic>? body,
+  }) async {
     return _send(
-      () async => http.delete(Uri.parse(url), headers: await _headers()),
+      () async => http.delete(
+        Uri.parse(url),
+        headers: await _headers(),
+        body: body != null ? jsonEncode(body) : null,
+      ),
     );
   }
 }

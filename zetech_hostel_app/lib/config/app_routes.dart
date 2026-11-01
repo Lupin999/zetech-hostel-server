@@ -11,6 +11,7 @@ import '../screens/student/my_bookings_screen.dart';
 import '../screens/student/notices_screen.dart';
 import '../screens/student/menu_screen.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
+import '../screens/admin/account_operations_screen.dart';
 import '../screens/student/profile_screen.dart';
 import '../screens/student/services_screen.dart';
 import '../screens/auth/create_admin_screen.dart';
@@ -23,7 +24,6 @@ class AppRoutes {
       final isLoggedIn = auth.token != null;
       final isLoading = auth.loading;
       final location = state.matchedLocation;
-
       if (isLoading) return null;
 
       final authRoutes = ['/login', '/register'];
@@ -35,7 +35,12 @@ class AppRoutes {
         return '/login';
       }
       if (isLoggedIn && authRoutes.contains(location)) {
-        return '/dashboard';
+        return auth.homeRoute;
+      }
+      if (isLoggedIn &&
+          location == '/dashboard' &&
+          auth.homeRoute != '/dashboard') {
+        return auth.homeRoute;
       }
       return null;
     },
@@ -66,8 +71,20 @@ class AppRoutes {
         redirect: (context, state) {
           final auth = context.read<AuthProvider>();
           final role = auth.user?.role?.toLowerCase() ?? '';
-          if (!['admin', 'accounts', 'warden'].contains(role))
-            return '/dashboard';
+          if (!['admin', 'warden'].contains(role)) {
+            return auth.homeRoute;
+          }
+          return null;
+        },
+      ),
+      GoRoute(
+        path: '/operations',
+        builder: (context, state) => const AccountOperationsScreen(),
+        redirect: (context, state) {
+          final auth = context.read<AuthProvider>();
+          if (auth.user?.role?.toLowerCase() != 'accounts') {
+            return auth.homeRoute;
+          }
           return null;
         },
       ),

@@ -68,7 +68,7 @@ class BookingCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             // Details grid
-            if (booking.bedNumber != null && booking.bedNumber != 0)
+            if (booking.bedNumber != null && booking.bedNumber != '0')
               _detailRow(Icons.king_bed, 'Bed ${booking.bedNumber} (${booking.bedPosition ?? ''})'),
             _detailRow(Icons.school, booking.semester ?? ''),
             _detailRow(Icons.calendar_today, 'Arrival: ${Helpers.formatDate(booking.arrivalDate)}'),

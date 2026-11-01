@@ -48,7 +48,7 @@ class AdminBookingCard extends StatelessWidget {
             _row(
               Icons.hotel,
               'Room ${Helpers.formatRoomNumber(booking.roomNumber)}'
-              '${booking.bedNumber == null || booking.bedNumber == 0 ? '' : ' • Bed ${booking.bedNumber}'}',
+              '${booking.bedNumber == null || booking.bedNumber == '0' ? '' : ' • Bed ${booking.bedNumber}'}',
             ),
             _row(Icons.location_on, Helpers.formatHostelName(booking.hostel)),
             _row(Icons.school, booking.semester ?? ''),

@@ -1,7 +1,7 @@
 class Bed {
   final String? id;
   final String? roomId;
-  final int? bedNumber;
+  final String? bedNumber;
   final String? position;
   final String? status;
 
@@ -10,10 +10,17 @@ class Bed {
   factory Bed.fromJson(Map<String, dynamic> json) => Bed(
     id: (json['_id'] ?? json['id'])?.toString(),
     roomId: (json['roomId'] ?? json['room_id'])?.toString(),
-    bedNumber: json['bedNumber'] ?? json['bed_number'],
+    bedNumber: _readBedNumber(json['bedNumber'] ?? json['bed_number']),
     position: json['position']?.toString(),
     status: json['status']?.toString(),
   );
+
+  static String? _readBedNumber(dynamic value) {
+    final bedNumber = value?.toString().trim();
+    return bedNumber == null || bedNumber.isEmpty || bedNumber == '0'
+        ? null
+        : bedNumber;
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,

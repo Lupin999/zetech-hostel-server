@@ -73,6 +73,8 @@ class ApiConfig {
   static final String allPayments = '$baseUrl/payments/all';
   static final String stkPush = '$baseUrl/payments/stk-push';
   static final String stkQuery = '$baseUrl/payments/stk-query';
+  static String paymentReceipt(dynamic id) => '$baseUrl/operations/payments/$id/receipt';
+  static final String deleteAccount = '$baseUrl/auth/account';
   // Correct route: PATCH /payments/:id/confirm — use confirmPayment(id)
   static String confirmPayment(dynamic id) => '$baseUrl/payments/$id/confirm';
 
