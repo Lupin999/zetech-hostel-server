@@ -36,9 +36,18 @@ const setStudentRole = async (actor, userId, role) => {
     if (actor.role !== 'admin') return { error: 'Only an admin can change user roles', status: 403 };
     if (!userRoles.includes(role)) return { error: 'Invalid role', status: 400 };
     if (Number(actor.id) === Number(userId)) return { error: 'You cannot change your own role', status: 400 };
+    const [users] = await model.getUserRoleDetails(userId);
+    if (!users.length) return { error: 'User not found', status: 404 };
+    const target = users[0];
+    if (target.role === role) return { message: 'User already has this role' };
     const [result] = await model.updateRole(userId, role);
     if (!result.affectedRows) return { error: 'User not found', status: 404 };
-    await audit(actor.id, 'user.role.updated', 'user', userId, { role });
+    await audit(actor.id, 'user.role.updated', 'user', userId, {
+        target_name: target.full_name,
+        target_reg_no: target.reg_no,
+        previous_role: target.role,
+        role,
+    });
     return { message: 'User role updated' };
 };
 

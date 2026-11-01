@@ -18,6 +18,26 @@ test('only an administrator can change user roles', async () => {
     assert.match(result.error, /Only an admin/);
 });
 
+test('role changes record the target identity and both role values', async () => {
+    let auditEntry;
+    model.getUserRoleDetails = async () => [[{
+        id: 12, full_name: 'Student Example', reg_no: 'CS-01-0001/2026', role: 'student',
+    }]];
+    model.updateRole = async () => [{ affectedRows: 1 }];
+    model.writeAuditLog = async (entry) => { auditEntry = entry; };
+
+    const result = await service.setStudentRole({ id: 10, role: 'admin' }, 12, 'warden');
+
+    assert.equal(result.message, 'User role updated');
+    assert.equal(auditEntry.entityId, 12);
+    assert.deepEqual(auditEntry.details, {
+        target_name: 'Student Example',
+        target_reg_no: 'CS-01-0001/2026',
+        previous_role: 'student',
+        role: 'warden',
+    });
+});
+
 test('check-in refuses bookings without an eligible approved paid stay', async () => {
     model.checkIn = async () => [{ affectedRows: 0 }];
 

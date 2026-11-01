@@ -6,7 +6,9 @@ const staffRoles = ['admin', 'accounts', 'warden'];
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const auditedDetailFields = new Set([
     'status', 'role', 'suspended', 'room_id', 'bed_id', 'arrival_date', 'departure_date',
-    'room_number', 'room_type', 'capacity', 'price',
+    'room_number', 'room_type', 'capacity', 'price', 'hostel', 'campus', 'semester',
+    'opens_on', 'duration_months', 'closes_on', 'condition_status', 'cleanliness',
+    'safety_status', 'priority', 'request_type', 'decision', 'target',
 ]);
 
 function getAuditedChanges(body = {}) {
@@ -36,7 +38,10 @@ module.exports = (req, res, next) => {
                 action: `${req.method} ${req.baseUrl}${req.path}`.slice(0, 80),
                 entityType: parts[0] || 'api',
                 entityId,
-                details: { route: req.path, changes: getAuditedChanges(req.body) },
+                details: {
+                    route: req.path,
+                    changes: getAuditedChanges(req.body),
+                },
             }).catch((auditError) => logger.error('ADMIN AUDIT WRITE ERROR', { message: auditError.message }));
         });
         next();

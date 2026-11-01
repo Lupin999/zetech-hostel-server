@@ -12,6 +12,11 @@ const listStudents = (search) => pool.query(
 
 const updateRole = (userId, role) => pool.query('UPDATE users SET role = ? WHERE id = ?', [role, userId]);
 
+const getUserRoleDetails = (userId) => pool.query(
+    'SELECT id, full_name, reg_no, role FROM users WHERE id = ?',
+    [userId]
+);
+
 const listStays = () => pool.query(
     `SELECT b.id, b.user_id, b.room_id, b.semester, b.arrival_date, b.departure_date,
         b.checked_in_at, b.checked_out_at, r.room_number, r.hostel, bd.bed_number,
@@ -457,5 +462,6 @@ module.exports = {
     createRequest, listRequests, updateRequest, createVisitor, listVisitors,
     getVisitor, updateVisitorStatus, listInspections, createInspection, updateRoomStatus, getPaymentReceipt,
     getPaymentReport, getBalances, getOverview, writeAuditLog, listAuditLogs,
+    getUserRoleDetails,
     listPeriods, createPeriod, getPeriodBookingAccess, activateDuePeriods, closeExpiredPeriods,
 };

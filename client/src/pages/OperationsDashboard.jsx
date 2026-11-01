@@ -4,6 +4,7 @@ import {
     DialogTitle, MenuItem, Paper, Tab, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
@@ -13,6 +14,82 @@ const tabsByRole = {
     admin: ['Stays', 'History', 'Checkout Requests', 'Periods', 'Students', 'Requests', 'Visitors', 'Inspections', 'Payments', 'Reports', 'Audit'],
     accounts: ['Payments', 'Reports'],
     warden: ['Stays', 'History', 'Checkout Requests', 'Requests', 'Visitors', 'Inspections'],
+};
+
+const parseAuditDetails = (details) => {
+    if (!details) return {};
+    if (typeof details !== 'string') return details;
+    try { return JSON.parse(details); }
+    catch { return { summary: details }; }
+};
+
+const presentAuditRow = (row) => {
+    const details = parseAuditDetails(row.details);
+    const changes = details.changes || {};
+    const rawAction = row.action || '';
+    const genericAction = /^(POST|PUT|PATCH|DELETE)\s+(.+)$/i.exec(rawAction);
+    const method = genericAction?.[1]?.toUpperCase();
+    const endpoint = (genericAction?.[2] || details.route || '')
+        .replace(/^\/api\//, '')
+        .split('/')
+        .filter((part) => part && !/^\d+$/.test(part))
+        .join('/');
+    const status = String(changes.status || '').toLowerCase();
+    const labels = {
+        'user.role.updated': 'Changed user role',
+        'stay.checked_in': 'Checked resident in',
+        'stay.checked_out': 'Checked resident out',
+        'stay.dates_updated': 'Updated resident stay dates',
+        'stay.checkout_approved': 'Approved checkout request',
+        'stay.checkout_declined': 'Declined checkout request',
+        'bookings/status': status === 'approved' ? 'Approved booking' : status === 'rejected' ? 'Rejected booking' : 'Updated booking status',
+        'bookings/suspend': 'Changed booking suspension',
+        'payments/confirm': 'Confirmed payment',
+        'notifications/send': 'Sent a message',
+        'auth/login': 'Signed in',
+        'auth/profile': 'Updated account profile',
+        'rooms': method === 'DELETE' ? 'Removed room' : method === 'POST' ? 'Created room' : 'Updated room',
+        'notices': method === 'DELETE' ? 'Removed notice' : method === 'POST' ? 'Posted notice' : 'Updated notice',
+        'operations/checkout-requests/decision': 'Reviewed checkout request',
+        'operations/inspections': 'Recorded room inspection',
+        'operations/periods': method === 'POST' ? 'Created hostel period' : 'Updated hostel period',
+        'operations/visitors': 'Updated visitor record',
+        'operations/requests': 'Updated service request',
+        'operations/stays': 'Updated resident stay',
+    };
+    const action = labels[rawAction] || labels[endpoint] ||
+        rawAction.replaceAll('.', ' ').replaceAll('_', ' ');
+    const entity = {
+        bookings: 'Booking',
+        payments: 'Payment',
+        rooms: 'Room',
+        users: 'User',
+        notices: 'Notice',
+        notifications: 'Notification',
+    }[row.entity_type] || (row.entity_type || 'Record').replaceAll('_', ' ');
+    const targetName = details.target_name;
+    const roomNumber = changes.room_number;
+    const record = targetName
+        ? `User: ${targetName} (ID ${row.entity_id})`
+        : roomNumber
+            ? `Room ${roomNumber}${changes.hostel ? ` · ${formatHostelName(changes.hostel)}` : ''}`
+            : `${entity}${row.entity_id ? ` ${row.entity_id}` : ''}`;
+    const detailLines = [];
+    if (details.previous_role || changes.role || details.role) {
+        const roleName = (value) => String(value || '').replaceAll('_', ' ')
+            .replace(/\b\w/g, (letter) => letter.toUpperCase());
+        detailLines.push(`Role: ${details.previous_role ? `${roleName(details.previous_role)} → ` : ''}${roleName(changes.role || details.role)}`);
+    }
+    const displayChanges = { ...changes };
+    delete displayChanges.role;
+    delete displayChanges.room_number;
+    const readableChanges = Object.entries(displayChanges)
+        .map(([key, value]) => `${key.replaceAll('_', ' ')}: ${String(value)}`)
+        .join('; ');
+    if (readableChanges) detailLines.push(readableChanges);
+    if (details.summary) detailLines.push(details.summary);
+    if (!detailLines.length) detailLines.push('No additional details recorded');
+    return { action, record, details: detailLines.join('; '), parsedDetails: details };
 };
 
 const csvDownload = (name, rows) => {
@@ -29,41 +106,15 @@ const csvDownload = (name, rows) => {
 };
 
 const auditCsvRows = (rows) => rows.map((row) => {
-    let details = row.details;
-    if (typeof details === 'string') {
-        try { details = JSON.parse(details); }
-        catch { details = { summary: details }; }
-    }
-
-    const genericAction = /^(POST|PUT|PATCH|DELETE)\s+(.+)$/i.exec(row.action || '');
-    let action = row.action || '';
-    if (genericAction) {
-        const method = genericAction[1].toUpperCase();
-        const route = genericAction[2].replace(/^\/api\//, '').split('/').filter((part) => !/^\d+$/.test(part));
-        const endpoint = route.join('/');
-        const knownActions = {
-            'bookings/status': 'Booking status updated',
-            'bookings/suspend': 'Booking suspension updated',
-            'payments/confirm': 'Payment confirmed',
-        };
-        const verbs = { POST: 'Created', PUT: 'Updated', PATCH: 'Updated', DELETE: 'Removed' };
-        action = knownActions[endpoint] || `${verbs[method]} ${endpoint.replaceAll('/', ' ').replaceAll('_', ' ')}`;
-    } else {
-        action = action.replaceAll('.', ' ').replaceAll('_', ' ');
-    }
-
-    const changes = details?.changes && typeof details.changes === 'object'
-        ? Object.entries(details.changes).map(([key, value]) => `${key.replaceAll('_', ' ')}: ${value}`).join('; ')
-        : 'No field-level details recorded';
+    const audit = presentAuditRow(row);
 
     return {
         Timestamp: row.created_at,
         'Staff member': row.actor_name || '',
         Email: row.actor_email || '',
-        Action: action,
-        'Record type': row.entity_type || '',
-        'Record ID': row.entity_id || '',
-        Details: changes,
+        Action: audit.action,
+        Record: audit.record,
+        Details: audit.details,
     };
 });
 
@@ -81,6 +132,7 @@ export default function OperationsDashboard() {
     });
     const [dateDialog, setDateDialog] = useState(null);
     const [inspectionDialog, setInspectionDialog] = useState(false);
+    const [auditUpdatedAt, setAuditUpdatedAt] = useState(null);
     const [inspectionForm, setInspectionForm] = useState({ room_id: '', condition_status: 'good', cleanliness: 'clean', safety_status: 'clear', notes: '' });
     const [dateRange, setDateRange] = useState(() => {
         const now = new Date();
@@ -109,7 +161,10 @@ export default function OperationsDashboard() {
                 setRooms(roomRes.data);
             }
             if (activeTab === 'Payments') setFinancePayments((await api.get('/payments/all')).data);
-            if (activeTab === 'Audit') setRows((await api.get('/operations/audit')).data);
+            if (activeTab === 'Audit') {
+                setRows((await api.get('/operations/audit')).data);
+                setAuditUpdatedAt(new Date());
+            }
         } catch (error) { toast.error(error.response?.data?.error || 'Could not load operations data'); }
     };
 
@@ -137,11 +192,29 @@ export default function OperationsDashboard() {
             } else if (activeTab === 'Inspections') {
                 setRows(response[0].data);
                 setRooms(response[1].data);
-            } else setRows(response.data);
+            } else {
+                setRows(response.data);
+                if (activeTab === 'Audit') setAuditUpdatedAt(new Date());
+            }
         })
             .catch(error => toast.error(error.response?.data?.error || 'Could not load operations data'));
         return () => { active = false; };
     }, [activeTab, search]);
+
+    useEffect(() => {
+        if (activeTab !== 'Audit') return undefined;
+        const timer = window.setInterval(async () => {
+            if (document.visibilityState !== 'visible') return;
+            try {
+                const response = await api.get('/operations/audit');
+                setRows(response.data);
+                setAuditUpdatedAt(new Date());
+            } catch (error) {
+                toast.error(error.response?.data?.error || 'Could not refresh audit activity');
+            }
+        }, 15000);
+        return () => window.clearInterval(timer);
+    }, [activeTab]);
 
     const runReport = async (event) => {
         event?.preventDefault();
@@ -343,9 +416,26 @@ export default function OperationsDashboard() {
             </>}
         </>}
 
-        {activeTab === 'Audit' && <><Button sx={{ mb: 1 }} onClick={() => csvDownload('hostel-admin-audit.csv', auditCsvRows(rows))}>Export CSV</Button>
+        {activeTab === 'Audit' && <>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                <Button onClick={load} startIcon={<RefreshIcon />}>Refresh</Button>
+                <Button onClick={() => csvDownload('hostel-admin-audit.csv', auditCsvRows(rows))}>Export CSV</Button>
+                <Chip size="small" color="success" variant="outlined" label="Live · refreshes every 15 seconds" />
+                <Typography variant="caption" color="text.secondary">
+                    {auditUpdatedAt ? `Updated ${auditUpdatedAt.toLocaleTimeString()}` : 'Loading audit activity…'}
+                </Typography>
+            </Box>
             <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['When', 'Staff', 'Action', 'Record', 'Details'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.created_at).toLocaleString()}</TableCell><TableCell>{row.actor_name || 'Deleted account'}</TableCell><TableCell>{row.action}</TableCell><TableCell>{row.entity_type} {row.entity_id || ''}</TableCell><TableCell>{typeof row.details === 'string' ? row.details : JSON.stringify(row.details || {})}</TableCell></TableRow>)}
+                <TableBody>{rows.map(row => {
+                    const audit = presentAuditRow(row);
+                    return <TableRow key={row.id}>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{new Date(row.created_at).toLocaleString()}</TableCell>
+                        <TableCell>{row.actor_name || 'Deleted account'}</TableCell>
+                        <TableCell>{audit.action}</TableCell>
+                        <TableCell>{audit.record}</TableCell>
+                        <TableCell>{audit.details}</TableCell>
+                    </TableRow>;
+                })}
                     {!rows.length && <TableRow><TableCell colSpan={5} align="center">No audit activity recorded yet</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
         <Dialog open={Boolean(dateDialog)} onClose={() => setDateDialog(null)} maxWidth="xs" fullWidth>
