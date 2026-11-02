@@ -126,10 +126,10 @@ const auditCsvRows = (rows) => rows.map((row) => {
     };
 });
 
-export default function OperationsDashboard() {
+export default function OperationsDashboard({ initialTab = 'Stays', hideNavigation = false }) {
     const { user } = useAuth();
     const tabs = user?.role === 'admin' ? adminTabs : [];
-    const [tab, setTab] = useState(0);
+    const [tab, setTab] = useState(() => Math.max(0, adminTabs.indexOf(initialTab)));
     const [rows, setRows] = useState([]);
     const [financePayments, setFinancePayments] = useState([]);
     const [rooms, setRooms] = useState([]);
@@ -148,7 +148,7 @@ export default function OperationsDashboard() {
         const now = new Date();
         return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
     });
-    const activeTab = tabs[tab];
+    const activeTab = hideNavigation ? initialTab : tabs[tab];
     const reportRows = useMemo(() => report?.payment_rows || [], [report]);
 
     const load = async () => {
@@ -315,10 +315,12 @@ export default function OperationsDashboard() {
     if (!tabs.length) return <Alert severity="error">Your account does not have access to operations management.</Alert>;
 
     return <Box>
-        <Typography variant="h4" fontWeight={700} gutterBottom>Operations</Typography>
-        <Tabs value={tab} onChange={(_, value) => { setTab(value); setRows([]); }} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
-            {tabs.map(label => <Tab key={label} label={label} />)}
-        </Tabs>
+        {!hideNavigation && <>
+            <Typography variant="h4" fontWeight={700} gutterBottom>Operations</Typography>
+            <Tabs value={tab} onChange={(_, value) => { setTab(value); setRows([]); }} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
+                {tabs.map(label => <Tab key={label} label={label} />)}
+            </Tabs>
+        </>}
 
         {activeTab === 'Stays' && <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Resident', 'Room / bed', 'Arrival', 'Departure', 'Payment', 'Stay status', 'Action'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
             <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)} {row.bed_number && String(row.bed_number).trim() !== '0' ? `· Bed ${row.bed_number}` : ''}</TableCell><TableCell>{row.arrival_date ? new Date(row.arrival_date).toLocaleDateString() : '—'}</TableCell><TableCell>{row.departure_date ? new Date(row.departure_date).toLocaleDateString() : '—'}</TableCell><TableCell>{Number(row.confirmed_payments) ? <Chip size="small" color="success" label="Confirmed" /> : <Chip size="small" color="warning" label="Unpaid" />}</TableCell><TableCell>{row.checked_out_at ? 'Checked out' : row.checked_in_at ? `In since ${new Date(row.checked_in_at).toLocaleString()}` : 'Not checked in'}</TableCell><TableCell>{!row.checked_out_at && <Button size="small" onClick={() => setDateDialog({ id: row.id, arrival_date: row.arrival_date?.slice(0, 10) || '', departure_date: row.departure_date?.slice(0, 10) || '' })}>Dates</Button>}{!row.checked_in_at && !row.checked_out_at && <Button size="small" disabled={!Number(row.confirmed_payments)} onClick={() => changeStayStatus(row.id, 'check-in')}>Check in</Button>}{row.checked_in_at && !row.checked_out_at && <Button size="small" color="warning" onClick={() => changeStayStatus(row.id, 'check-out')}>Check out</Button>}</TableCell></TableRow>)}

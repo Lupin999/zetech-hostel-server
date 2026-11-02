@@ -23,7 +23,7 @@ import dImg from '../d.jpg';
 
 ChartJS.register(ArcElement, ChartTooltip, Legend);
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ initialTab = 'bookings', hideSectionNavigation = false }) {
     const { user } = useAuth();
     const { bookings, bookingOpen, loading: bLoading, fetchAllBookings, toggle } = useBookings({ fetchAll: true });
     const { rooms, loading: rLoading, fetchRooms } = useRooms();
@@ -47,7 +47,7 @@ export default function AdminDashboard() {
     const [profileDialog, setProfileDialog] = useState(false);
     const [profileForm, setProfileForm] = useState({ email: user?.email || '', phone: user?.phone || '' });
     const [profileSaving, setProfileSaving] = useState(false);
-    const [adminTab, setAdminTab] = useState('bookings');
+    const [adminTab, setAdminTab] = useState(initialTab);
 
     const fetchData = async () => {
         setLoading(true);
@@ -266,7 +266,7 @@ export default function AdminDashboard() {
                 </Typography>
             </Paper>
 
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+            {!hideSectionNavigation && <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
                 {[
                     { key: 'bookings', label: 'Student Bookings' },
                     { key: 'boys', label: 'Male Hostel' },
@@ -282,7 +282,7 @@ export default function AdminDashboard() {
                         {tab.label}
                     </Button>
                 ))}
-            </Box>
+            </Box>}
 
             {adminTab === 'bookings' && (
                 <>
