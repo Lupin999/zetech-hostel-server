@@ -122,6 +122,11 @@ router.post('/inspections', authenticateToken, allowRoles('admin'),
     body('notes').optional().isString().isLength({ max: 5000 }),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.createInspection(req.user.id, req.body)));
+router.delete('/inspections/:id', authenticateToken, allowRoles('admin'),
+    param('id').custom(validId), (req, res, next) => {
+        if (handleErrors(req, res)) return;
+        next();
+    }, run((req) => operationsService.deleteInspection(req.user.id, req.params.id)));
 router.patch('/rooms/:id/status', authenticateToken, allowRoles('admin'),
     param('id').custom(validId), body('status').isIn(['available', 'full', 'maintenance']),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },

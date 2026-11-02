@@ -219,6 +219,13 @@ const createInspection = async (actorId, input) => {
     return { id: result.insertId, message: 'Room inspection recorded' };
 };
 
+const deleteInspection = async (actorId, inspectionId) => {
+    const [result] = await model.deleteInspection(inspectionId);
+    if (!result.affectedRows) return null;
+    await audit(actorId, 'room.inspection_deleted', 'room_inspection', inspectionId, {});
+    return { message: 'Room inspection deleted' };
+};
+
 const updateRoomStatus = async (actorId, roomId, status) => {
     const [result] = await model.updateRoomStatus(roomId, status);
     if (!result.affectedRows) return { error: 'Room not found', status: 404 };
@@ -307,7 +314,7 @@ const createPeriod = async (actorId, input) => {
 module.exports = {
     listStudents, setStudentRole, listStays, getStudentCurrentStay, listStayHistory, checkIn, checkOut, createCheckoutRequest, listCheckoutRequests, decideCheckoutRequest, updateStayDates, createRequest,
     listRequests, updateRequest, createVisitor, listVisitors, updateVisitor,
-    listInspections, createInspection, updateRoomStatus,
+    listInspections, createInspection, deleteInspection, updateRoomStatus,
     getPaymentReceipt, getBalances,
     getReports, getAuditLogs, listPeriods, createPeriod,
 };

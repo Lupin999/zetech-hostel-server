@@ -5,6 +5,7 @@ import {
     TableContainer, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
@@ -140,6 +141,8 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
     });
     const [dateDialog, setDateDialog] = useState(null);
     const [inspectionDialog, setInspectionDialog] = useState(false);
+    const [inspectionToDelete, setInspectionToDelete] = useState(null);
+    const [inspectionDeleting, setInspectionDeleting] = useState(false);
     const [inspectionSubmitting, setInspectionSubmitting] = useState(false);
     const inspectionSubmittingRef = useRef(false);
     const [auditUpdatedAt, setAuditUpdatedAt] = useState(null);
@@ -266,6 +269,21 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
         }
     };
 
+    const deleteInspection = async () => {
+        if (!inspectionToDelete || inspectionDeleting) return;
+        setInspectionDeleting(true);
+        try {
+            await api.delete(`/operations/inspections/${inspectionToDelete.id}`);
+            setRows((currentRows) => currentRows.filter((row) => row.id !== inspectionToDelete.id));
+            setInspectionToDelete(null);
+            toast.success('Inspection deleted');
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Could not delete inspection');
+        } finally {
+            setInspectionDeleting(false);
+        }
+    };
+
     const setRoomStatus = async (roomId, status) => {
         try {
             await api.patch(`/operations/rooms/${roomId}/status`, { status });
@@ -374,9 +392,9 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
 
         {activeTab === 'Inspections' && <>
             <Button variant="contained" sx={{ mb: 2 }} onClick={() => setInspectionDialog(true)}>Record inspection</Button>
-            <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Room', 'Inspector', 'Condition', 'Cleanliness', 'Safety', 'Room status', 'Notes'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.inspected_at).toLocaleString()}</TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)}</TableCell><TableCell>{row.inspector_name || '—'}</TableCell><TableCell>{row.condition_status.replace('_', ' ')}</TableCell><TableCell>{row.cleanliness.replace('_', ' ')}</TableCell><TableCell>{row.safety_status.replace('_', ' ')}</TableCell><TableCell><TextField select size="small" value={row.room_status} onChange={e => setRoomStatus(row.room_id, e.target.value)} sx={{ minWidth: 140 }}>{['available', 'full', 'maintenance'].map(status => <MenuItem key={status} value={status}>{status}</MenuItem>)}</TextField></TableCell><TableCell>{row.notes || '—'}</TableCell></TableRow>)}
-                    {!rows.length && <TableRow><TableCell colSpan={8} align="center">No inspections recorded</TableCell></TableRow>}</TableBody></Table></TableContainer>
+            <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Room', 'Inspector', 'Condition', 'Cleanliness', 'Safety', 'Room status', 'Notes', ''].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
+                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.inspected_at).toLocaleString()}</TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)}</TableCell><TableCell>{row.inspector_name || '—'}</TableCell><TableCell>{row.condition_status.replace('_', ' ')}</TableCell><TableCell>{row.cleanliness.replace('_', ' ')}</TableCell><TableCell>{row.safety_status.replace('_', ' ')}</TableCell><TableCell><TextField select size="small" value={row.room_status} onChange={e => setRoomStatus(row.room_id, e.target.value)} sx={{ minWidth: 140 }}>{['available', 'full', 'maintenance'].map(status => <MenuItem key={status} value={status}>{status}</MenuItem>)}</TextField></TableCell><TableCell>{row.notes || '—'}</TableCell><TableCell><Button color="error" size="small" startIcon={<DeleteOutlineIcon />} onClick={() => setInspectionToDelete(row)}>Delete</Button></TableCell></TableRow>)}
+                    {!rows.length && <TableRow><TableCell colSpan={9} align="center">No inspections recorded</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
         {activeTab === 'Payments' && <>
@@ -470,6 +488,22 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
                 </DialogContent>
                 <DialogActions><Button onClick={() => setInspectionDialog(false)} disabled={inspectionSubmitting}>Cancel</Button><Button type="submit" variant="contained" disabled={!rooms.length || inspectionSubmitting}>{inspectionSubmitting ? 'Saving…' : 'Save inspection'}</Button></DialogActions>
             </Box>
+        </Dialog>
+        <Dialog open={Boolean(inspectionToDelete)} onClose={() => !inspectionDeleting && setInspectionToDelete(null)}>
+            <DialogTitle>Delete this inspection?</DialogTitle>
+            <DialogContent>
+                <Typography color="text.secondary">
+                    This will permanently delete the inspection for {inspectionToDelete
+                        ? `${formatHostelName(inspectionToDelete.hostel)} ${formatRoomNumber(inspectionToDelete.room_number)}`
+                        : 'this room'}. This action cannot be undone.
+                </Typography>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={() => setInspectionToDelete(null)} disabled={inspectionDeleting}>Cancel</Button>
+                <Button color="error" variant="contained" onClick={deleteInspection} disabled={inspectionDeleting}>
+                    {inspectionDeleting ? 'Deleting…' : 'Delete inspection'}
+                </Button>
+            </DialogActions>
         </Dialog>
     </Box>;
 }

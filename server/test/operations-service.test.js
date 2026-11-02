@@ -62,6 +62,28 @@ test('successful check-in is recorded in the audit log', async () => {
     assert.equal(auditEntry.entityId, 20);
 });
 
+test('admin can delete an inspection and the deletion is audited', async () => {
+    let auditEntry;
+    model.deleteInspection = async () => [{ affectedRows: 1 }];
+    model.writeAuditLog = async (entry) => { auditEntry = entry; };
+
+    const result = await service.deleteInspection(5, 20);
+
+    assert.deepEqual(result, { message: 'Room inspection deleted' });
+    assert.equal(auditEntry.action, 'room.inspection_deleted');
+    assert.equal(auditEntry.entityType, 'room_inspection');
+    assert.equal(auditEntry.entityId, 20);
+});
+
+test('deleting a missing inspection returns not found', async () => {
+    model.deleteInspection = async () => [{ affectedRows: 0 }];
+    model.writeAuditLog = () => assert.fail('missing inspection must not be audited');
+
+    const result = await service.deleteInspection(5, 20);
+
+    assert.equal(result, null);
+});
+
 test('students without a checked-in room cannot submit service requests', async () => {
     model.getStudentCurrentStay = async () => [[], []];
     model.createRequest = () => assert.fail('request must not be created');

@@ -219,6 +219,8 @@ const listInspections = () => pool.query(
      ORDER BY i.inspected_at DESC LIMIT 500`
 );
 
+const deleteInspection = (id) => pool.query('DELETE FROM room_inspections WHERE id = ?', [id]);
+
 const createInspection = async ({ roomId, inspectorId, conditionStatus, cleanliness, safetyStatus, notes }) => {
     const connection = await pool.getConnection();
     try {
@@ -462,7 +464,7 @@ const closeExpiredPeriods = async () => {
 module.exports = {
     listStudents, updateRole, listStays, listStayHistory, checkIn, checkOut, getStayBed, getStudentCurrentStay, createCheckoutRequest, listCheckoutRequests, decideCheckoutRequest, updateStayDates, updateBedStatus, getStudentRoom,
     createRequest, listRequests, updateRequest, createVisitor, listVisitors,
-    getVisitor, updateVisitorStatus, listInspections, createInspection, updateRoomStatus, getPaymentReceipt,
+    getVisitor, updateVisitorStatus, listInspections, createInspection, deleteInspection, updateRoomStatus, getPaymentReceipt,
     getPaymentReport, getBalances, getOverview, writeAuditLog, listAuditLogs,
     getUserRoleDetails,
     listPeriods, createPeriod, getPeriodBookingAccess, activateDuePeriods, closeExpiredPeriods,
