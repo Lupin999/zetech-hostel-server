@@ -1,11 +1,16 @@
 const PaymentModel = require('../models/paymentModel');
-const UserModel = require('../models/userModel');
 const { stkPush, stkQuery } = require('../utils/mpesa');
 const { sendNotification, sendToRole } = require('./notificationService');
+const { normalizeMpesaPhone } = require('../utils/phone');
+
+const DEPOSIT_AMOUNT = 12000;
 
 const initiateStkPush = async (userId, phone, bookingId) => {
     const [booking] = await PaymentModel.getApprovedBookingForPayment(bookingId, userId);
     if (!booking.length) return { error: 'No approved booking found', status: 400 };
+
+    const formatted = normalizeMpesaPhone(phone);
+    if (!formatted) return { error: 'Enter a valid Kenyan M-Pesa number, such as 0712345678', status: 400 };
 
     const [existing] = await PaymentModel.getPaymentsByBookingId(bookingId);
     if (existing.find(p => p.status === 'confirmed')) return { error: 'Payment already confirmed', status: 400 };
@@ -14,26 +19,31 @@ const initiateStkPush = async (userId, phone, bookingId) => {
         await PaymentModel.deletePendingByBookingId(bookingId);
     }
 
-    // Format phone
-    let formatted = phone.replace(/\s/g, '');
-    if (formatted.startsWith('0')) formatted = '254' + formatted.slice(1);
-    if (formatted.startsWith('+')) formatted = formatted.slice(1);
+    const reference = `ZH${bookingId}`;
 
-    const amount = Number(booking[0].price) || 30000;
-    const reference = `ZH-${booking[0].room_number}-${bookingId}`;
+    let mpesaRes;
+    try {
+        mpesaRes = await stkPush(formatted, DEPOSIT_AMOUNT, reference);
+    } catch (error) {
+        const providerError = new Error('M-Pesa STK push request failed');
+        providerError.cause = error;
+        providerError.stage = 'mpesa-stk-push';
+        providerError.response = error?.response;
+        providerError.code = error?.code;
+        throw providerError;
+    }
 
-    const mpesaRes = await stkPush(formatted, amount, reference);
-
-    if (mpesaRes.ResponseCode === '0') {
-        await PaymentModel.createPayment(bookingId, amount, 'mpesa', mpesaRes.CheckoutRequestID);
-        return { message: 'STK push sent', checkoutRequestId: mpesaRes.CheckoutRequestID };
+    if (mpesaRes.ResponseCode === '0' && mpesaRes.CheckoutRequestID) {
+        await PaymentModel.createPayment(bookingId, DEPOSIT_AMOUNT, 'mpesa', mpesaRes.CheckoutRequestID);
+        return { message: 'STK push sent', amount: DEPOSIT_AMOUNT, checkoutRequestId: mpesaRes.CheckoutRequestID };
     }
     return { error: mpesaRes.ResponseDescription || 'STK push failed', status: 400 };
 };
 
-const queryStkStatus = async (checkoutRequestId) => {
+const queryStkStatus = async (checkoutRequestId, userId) => {
     // Check if already confirmed in DB
-    const [payment] = await PaymentModel.findPaymentByCheckoutId(checkoutRequestId);
+    const [payment] = await PaymentModel.findPaymentByCheckoutId(checkoutRequestId, userId);
+    if (!payment.length) return { error: 'Payment request not found', status: 404 };
     if (payment.length && payment[0].status === 'confirmed') {
         return { status: 'confirmed', message: 'Payment already confirmed' };
     }
@@ -97,53 +107,6 @@ const handleCallback = async (body) => {
     }
 };
 
-const submitPayment = async (userId, { booking_id, amount, payment_method, mpesa_code }) => {
-    if (payment_method !== 'mpesa') {
-        return { error: 'Payments must be made through M-Pesa', status: 400 };
-    }
-
-    const [booking] = await PaymentModel.getApprovedBookingForPayment(booking_id, userId);
-    if (!booking.length) return { error: 'No approved booking found', status: 400 };
-
-    const [existing] = await PaymentModel.getPaymentsByBookingId(booking_id);
-    if (existing.find(p => p.status === 'confirmed')) return { error: 'Payment already confirmed for this booking', status: 400 };
-
-    if (existing.length) {
-        await PaymentModel.deletePendingByBookingId(booking_id);
-    }
-
-    if (!mpesa_code?.trim()) {
-        return { error: 'M-Pesa code is required for M-Pesa payments', status: 400 };
-    }
-
-    await PaymentModel.createPayment(booking_id, amount, payment_method, mpesa_code);
-
-    // Notifications
-    const [student] = await UserModel.findNameById(userId);
-    const [room] = await PaymentModel.getRoomNumberByBookingId(booking_id);
-    const sName = student[0]?.full_name || 'A student';
-    const sReg = student[0]?.reg_no || '';
-    const rNum = room[0]?.room_number || '';
-
-    await sendToRole(['accounts', 'admin'], `${sName} (${sReg}) has submitted ${payment_method} payment of KES ${Number(amount).toLocaleString()} for Room ${rNum}. Awaiting confirmation.`, 'payment');
-    await sendNotification(userId, `Your ${payment_method} payment of KES ${Number(amount).toLocaleString()} for Room ${rNum} has been submitted and is awaiting admin confirmation.`, 'payment');
-
-    return { message: 'Payment submitted' };
-};
-
-const confirmPayment = async (paymentId) => {
-    await PaymentModel.updatePaymentStatus(paymentId, 'confirmed');
-
-    const [payment] = await PaymentModel.findPaymentWithDetails(paymentId);
-    if (payment.length) {
-        await sendNotification(payment[0].user_id,
-            `Your payment of KES ${Number(payment[0].amount).toLocaleString()} for Room ${payment[0].room_number} has been confirmed. Welcome to Zetech Hostel!`,
-            'payment'
-        );
-    }
-    return { message: 'Payment confirmed' };
-};
-
 const getMyPayments = async (userId) => {
     const [payments] = await PaymentModel.getStudentPayments(userId);
     return payments;
@@ -154,4 +117,4 @@ const getAllPayments = async () => {
     return payments;
 };
 
-module.exports = { initiateStkPush, queryStkStatus, handleCallback, submitPayment, confirmPayment, getMyPayments, getAllPayments };
+module.exports = { initiateStkPush, queryStkStatus, handleCallback, getMyPayments, getAllPayments, DEPOSIT_AMOUNT };

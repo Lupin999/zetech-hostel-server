@@ -18,7 +18,7 @@ import useRooms from '../hooks/useRooms';
 import useNotices from '../hooks/useNotices';
 import StatCard from '../components/admin/StatCard';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { formatDate, formatHostelName, formatRoomNumber } from '../utils/helpers';
+import { formatDate, formatHostelName, formatRoomNumber, isSuspended } from '../utils/helpers';
 import dImg from '../d.jpg';
 
 ChartJS.register(ArcElement, ChartTooltip, Legend);
@@ -164,18 +164,6 @@ export default function AdminDashboard() {
             Swal.fire({ icon: 'success', title: 'Message Sent!', text: `${msgTarget.full_name} will see this in their notifications.`, timer: 1500, confirmButtonColor: '#1a237e' });
         } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
         finally { setMsgSubmitting(false); }
-    };
-
-    const handleConfirmPayment = async (bookingId) => {
-        const r = await Swal.fire({ title: 'Confirm payment?', icon: 'question', showCancelButton: true, confirmButtonColor: '#43a047', confirmButtonText: 'Confirm' });
-        if (!r.isConfirmed) return;
-        try {
-            const pRes = await api.get('/payments/all');
-            const payment = pRes.data.find(p => p.booking_id === bookingId && p.status === 'pending');
-            if (!payment) return toast.error('No pending payment found');
-            await api.patch(`/payments/${payment.id}/confirm`); fetchData();
-            Swal.fire({ icon: 'success', title: 'Payment Confirmed!', timer: 1500, confirmButtonColor: '#1a237e' });
-        } catch (err) { toast.error(err.response?.data?.error || 'Failed'); }
     };
 
     const handleToggleBooking = async () => {
@@ -328,6 +316,7 @@ export default function AdminDashboard() {
                         filtered.map(b => {
                             const hasBed = b.bed_number && String(b.bed_number).trim() !== '0';
                             const hasPayment = b.payment_status && String(b.payment_status).trim() !== '0';
+                            const suspended = isSuspended(b.suspended);
                             return (
                                 <TableRow key={b.id} sx={{ bgcolor: b.status === 'pending' ? 'rgba(251,140,0,0.04)' : undefined }}>
                                     <TableCell>{b.full_name}</TableCell>
@@ -340,20 +329,19 @@ export default function AdminDashboard() {
                                     <TableCell>{hasPayment ? <Chip label={b.payment_status === 'confirmed' ? 'Paid' : 'Pending'} size="small" color={b.payment_status === 'confirmed' ? 'success' : 'warning'} variant="outlined" /> : '—'}</TableCell>
                                     <TableCell>
                                     {b.status === 'pending' && <Box sx={{ display: 'flex', gap: 0.5 }}><Button size="small" color="success" variant="contained" onClick={() => handleStatus(b, 'approved')} sx={{ bgcolor: '#2e7d32', boxShadow: '0 4px 12px rgba(46,125,50,0.35)', color: '#fff', '&:hover': { bgcolor: '#256629' } }}>Approve</Button><Button size="small" color="error" variant="outlined" onClick={() => handleStatus(b, 'rejected')} sx={{ borderWidth: 2, fontWeight: 700 }}>Reject</Button></Box>}
-                                    {user?.role !== 'warden' && b.status === 'approved' && b.payment_status === 'pending' && <Button size="small" color="success" variant="contained" onClick={() => handleConfirmPayment(b.id)} sx={{ bgcolor: '#1e88e5', boxShadow: '0 4px 12px rgba(30,136,229,0.35)', color: '#fff', '&:hover': { bgcolor: '#1565c0' } }}>Confirm Pay</Button>}
-                                    {b.status === 'approved' && !b.suspended && (
+                                    {b.status === 'approved' && !suspended && (
                                         <Button size="small" color="warning" variant="contained" sx={{ ml: 0.5, bgcolor: '#f9a825', color: '#111', fontWeight: 700, boxShadow: '0 4px 12px rgba(249,168,37,0.35)', '&:hover': { bgcolor: '#f59e0b' } }}
                                             onClick={() => { setSuspendTarget(b); setSuspendReason(''); setSuspendDialog(true); }}>Suspend</Button>
                                     )}
                                     <Button size="small" variant="contained" sx={{ ml: 0.5, bgcolor: '#1a237e', color: '#fff', boxShadow: '0 4px 12px rgba(26,35,126,0.30)', '&:hover': { bgcolor: '#101a73' } }}
                                         onClick={() => { setMsgTarget(b); setMsgText(''); setMsgDialog(true); }}>💬 Message</Button>
-                                    {b.status === 'approved' && b.suspended && (
+                                    {b.status === 'approved' && suspended && (
                                         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                                             <Chip label="🚫 Suspended" size="small" color="error" />
                                             <Button size="small" color="success" variant="outlined" onClick={() => handleUnsuspend(b.id)}>Unsuspend</Button>
                                         </Box>
                                     )}
-                                    {b.status === 'approved' && b.payment_status === 'confirmed' && !b.suspended && <Chip label="✓ Complete" size="small" color="success" />}
+                                    {b.status === 'approved' && b.payment_status === 'confirmed' && !suspended && <Chip label="✓ Complete" size="small" color="success" />}
                                 </TableCell>
                             </TableRow>
                             );

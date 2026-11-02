@@ -161,6 +161,9 @@ export default function Login() {
 
                     {tab === 1 && (
                         <form onSubmit={otpSent ? handleVerifyOtp : (e) => { e.preventDefault(); handleSendOtp(); }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
+                                Use the phone number on your account. The one-time code is sent to your registered email.
+                            </Typography>
                             <Box sx={{ display: 'flex', gap: 1, mb: 2.5 }}>
                                 <Select value={countryCode} onChange={e => setCountryCode(e.target.value)}
                                     sx={{ minWidth: 110, '& .MuiSelect-select': { color: '#000' } }} disabled={otpSent}>

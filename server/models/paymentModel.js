@@ -34,14 +34,10 @@ const getAllPayments = () => {
     );
 };
 
-const updatePaymentStatus = (id, status) => {
-    return pool.query("UPDATE payments SET status = ? WHERE id = ?", [status, id]);
-};
-
-const findPaymentByCheckoutId = (checkoutId) => {
+const findPaymentByCheckoutId = (checkoutId, userId) => {
     return pool.query(
-        "SELECT p.*, b.user_id FROM payments p JOIN bookings b ON p.booking_id = b.id WHERE p.mpesa_code = ?",
-        [checkoutId]
+        "SELECT p.*, b.user_id FROM payments p JOIN bookings b ON p.booking_id = b.id WHERE p.mpesa_code = ? AND b.user_id = ?",
+        [checkoutId, userId]
     );
 };
 
@@ -102,7 +98,7 @@ const getBookingInfoForNotification = (bookingId) => {
 
 module.exports = {
     createPayment, getPaymentsByBookingId, getStudentPayments, getAllPayments,
-    updatePaymentStatus, findPaymentByCheckoutId, confirmByCheckoutId, updateMpesaCode,
+    findPaymentByCheckoutId, confirmByCheckoutId, updateMpesaCode,
     findPaymentWithDetails, findPaymentWithFullDetails, deletePendingByBookingId,
     deletePendingByCheckoutId, getApprovedBookingForPayment, getRoomNumberByBookingId,
     getBookingInfoForNotification

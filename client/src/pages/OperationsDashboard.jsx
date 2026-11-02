@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent,
     DialogTitle, MenuItem, Paper, Tab, Table, TableBody, TableCell,
@@ -11,9 +11,9 @@ import api from '../utils/api';
 import { formatHostelName, formatPaymentMethod, formatRoomNumber } from '../utils/helpers';
 
 const tabsByRole = {
-    admin: ['Stays', 'History', 'Checkout Requests', 'Periods', 'Students', 'Requests', 'Visitors', 'Inspections', 'Payments', 'Reports', 'Audit'],
+    admin: ['Stays', 'History', 'Checkout Requests', 'Periods', 'Students', 'Requests', 'Inspections', 'Payments', 'Reports', 'Audit'],
     accounts: ['Payments', 'Reports'],
-    warden: ['Stays', 'History', 'Checkout Requests', 'Requests', 'Visitors', 'Inspections'],
+    warden: ['Stays', 'History', 'Checkout Requests', 'Requests', 'Inspections'],
 };
 
 const addMonthsToDate = (dateValue, months) => {
@@ -53,7 +53,8 @@ const presentAuditRow = (row) => {
         'stay.checkout_approved': 'Approved checkout request',
         'stay.checkout_declined': 'Declined checkout request',
         'bookings/status': status === 'approved' ? 'Approved booking' : status === 'rejected' ? 'Rejected booking' : 'Updated booking status',
-        'bookings/suspend': 'Changed booking suspension',
+        'bookings/suspend': 'Updated booking suspension',
+        'bookings/toggle': 'Updated booking availability',
         'payments/confirm': 'Confirmed payment',
         'notifications/send': 'Sent a message',
         'auth/login': 'Signed in',
@@ -63,12 +64,11 @@ const presentAuditRow = (row) => {
         'operations/checkout-requests/decision': 'Reviewed checkout request',
         'operations/inspections': 'Recorded room inspection',
         'operations/periods': method === 'POST' ? 'Created hostel period' : 'Updated hostel period',
-        'operations/visitors': 'Updated visitor record',
         'operations/requests': 'Updated service request',
         'operations/stays': 'Updated resident stay',
     };
     const action = labels[rawAction] || labels[endpoint] ||
-        rawAction.replaceAll('.', ' ').replaceAll('_', ' ');
+        (endpoint ? `Updated ${endpoint.replaceAll('/', ' ')}` : rawAction.replaceAll('.', ' ').replaceAll('_', ' '));
     const entity = {
         bookings: 'Booking',
         payments: 'Payment',
@@ -94,7 +94,9 @@ const presentAuditRow = (row) => {
     delete displayChanges.role;
     delete displayChanges.room_number;
     const readableChanges = Object.entries(displayChanges)
-        .map(([key, value]) => `${key.replaceAll('_', ' ')}: ${String(value)}`)
+        .map(([key, value]) => key === 'suspended'
+            ? `Suspension: ${value === true || value === 1 || String(value).toLowerCase() === 'true' || String(value) === '1' ? 'On' : 'Off'}`
+            : `${key.replaceAll('_', ' ')}: ${String(value)}`)
         .join('; ');
     if (readableChanges) detailLines.push(readableChanges);
     if (details.summary) detailLines.push(details.summary);
@@ -142,6 +144,8 @@ export default function OperationsDashboard() {
     });
     const [dateDialog, setDateDialog] = useState(null);
     const [inspectionDialog, setInspectionDialog] = useState(false);
+    const [inspectionSubmitting, setInspectionSubmitting] = useState(false);
+    const inspectionSubmittingRef = useRef(false);
     const [auditUpdatedAt, setAuditUpdatedAt] = useState(null);
     const [inspectionForm, setInspectionForm] = useState({ room_id: '', condition_status: 'good', cleanliness: 'clean', safety_status: 'clear', notes: '' });
     const [dateRange, setDateRange] = useState(() => {
@@ -164,7 +168,6 @@ export default function OperationsDashboard() {
             }
             if (activeTab === 'Students') setRows((await api.get('/operations/students', { params: { search } })).data);
             if (activeTab === 'Requests') setRows((await api.get('/operations/requests')).data);
-            if (activeTab === 'Visitors') setRows((await api.get('/operations/visitors')).data);
             if (activeTab === 'Inspections') {
                 const [inspectionRes, roomRes] = await Promise.all([api.get('/operations/inspections'), api.get('/rooms')]);
                 setRows(inspectionRes.data);
@@ -187,8 +190,7 @@ export default function OperationsDashboard() {
                     : activeTab === 'Periods' ? Promise.all([api.get('/operations/periods'), api.get('/rooms')])
             : activeTab === 'Students' ? api.get('/operations/students', { params: { search } })
                 : activeTab === 'Requests' ? api.get('/operations/requests')
-                        : activeTab === 'Visitors' ? api.get('/operations/visitors')
-                            : activeTab === 'Inspections' ? Promise.all([api.get('/operations/inspections'), api.get('/rooms')])
+                        : activeTab === 'Inspections' ? Promise.all([api.get('/operations/inspections'), api.get('/rooms')])
                         : activeTab === 'Payments' ? api.get('/payments/all')
                             : api.get('/operations/audit');
         request.then(response => {
@@ -252,6 +254,9 @@ export default function OperationsDashboard() {
 
     const recordInspection = async (event) => {
         event.preventDefault();
+        if (inspectionSubmittingRef.current) return;
+        inspectionSubmittingRef.current = true;
+        setInspectionSubmitting(true);
         try {
             await api.post('/operations/inspections', { ...inspectionForm, room_id: Number(inspectionForm.room_id) });
             setInspectionDialog(false);
@@ -259,6 +264,10 @@ export default function OperationsDashboard() {
             await load();
             toast.success('Inspection recorded');
         } catch (error) { toast.error(error.response?.data?.error || 'Could not record inspection'); }
+        finally {
+            inspectionSubmittingRef.current = false;
+            setInspectionSubmitting(false);
+        }
     };
 
     const setRoomStatus = async (roomId, status) => {
@@ -286,11 +295,6 @@ export default function OperationsDashboard() {
         catch (error) { toast.error(error.response?.data?.error || 'Could not update request'); }
     };
 
-    const updateVisitor = async (row, status) => {
-        try { await api.patch(`/operations/visitors/${row.id}/status`, { status }); await load(); toast.success('Visitor status updated'); }
-        catch (error) { toast.error(error.response?.data?.error || 'Could not update visitor'); }
-    };
-
     const decideCheckout = async (row, decision) => {
         if (decision === 'approved' && !window.confirm(`Approve checkout for ${row.full_name} from ${formatHostelName(row.hostel)}, Room ${formatRoomNumber(row.room_number)}? Their stay will be completed and the bed released.`)) return;
         const note = decision === 'declined' ? window.prompt('Reason for declining (optional):') : '';
@@ -310,14 +314,6 @@ export default function OperationsDashboard() {
             await load();
             toast.success('Hostel period scheduled');
         } catch (error) { toast.error(error.response?.data?.error || 'Could not schedule hostel period'); }
-    };
-
-    const confirmPayment = async (payment) => {
-        try {
-            await api.patch(`/payments/${payment.id}/confirm`);
-            await load();
-            toast.success('Payment confirmed');
-        } catch (error) { toast.error(error.response?.data?.error || 'Could not confirm payment'); }
     };
 
     if (!tabs.length) return <Alert severity="error">Your account does not have access to operations management.</Alert>;
@@ -344,7 +340,9 @@ export default function OperationsDashboard() {
                 {!rows.length && <TableRow><TableCell colSpan={7} align="center">No checkout requests</TableCell></TableRow>}</TableBody></Table></TableContainer>}
 
         {activeTab === 'Periods' && <>
-            <Alert severity="warning" sx={{ mb: 2 }}>When a period closes, checked-in residents in that hostel and campus are automatically checked out and their beds released. Approved bookings that were never checked in are cancelled.</Alert>
+            <Alert severity="info" sx={{ mb: 2 }}>
+                A period is the booking window for one campus and hostel. Students can book only while it is open. The duration sets its closing date; at close, residents already checked in are checked out and beds are released, while approved students who never checked in are cancelled.
+            </Alert>
             <Paper component="form" onSubmit={createHostelPeriod} sx={{ p: 2, mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                 <TextField select label="Campus" required value={periodForm.campus} onChange={(event) => setPeriodForm({ ...periodForm, campus: event.target.value })} sx={{ minWidth: 180 }}>
                     {[...new Set(rooms.map((room) => room.campus))].map((campus) => <MenuItem key={campus} value={campus}>{campus}</MenuItem>)}
@@ -376,10 +374,6 @@ export default function OperationsDashboard() {
             <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.created_at).toLocaleDateString()}</TableCell><TableCell>{row.full_name}<br />{row.reg_no}</TableCell><TableCell>{row.hostel || '—'} {row.room_number || ''}</TableCell><TableCell>{row.request_type}<br />{row.priority}</TableCell><TableCell>{row.title}<br /><Typography variant="caption">{row.description}</Typography></TableCell><TableCell>{row.status.replace('_', ' ')}</TableCell><TableCell><TextField select size="small" value={row.status} onChange={e => updateRequest(row, e.target.value)} sx={{ minWidth: 130 }}>{['open', 'in_progress', 'resolved', 'closed'].map(status => <MenuItem key={status} value={status}>{status.replace('_', ' ')}</MenuItem>)}</TextField></TableCell></TableRow>)}
                 {!rows.length && <TableRow><TableCell colSpan={7} align="center">No service requests</TableCell></TableRow>}</TableBody></Table></TableContainer>}
 
-        {activeTab === 'Visitors' && <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Visitor', 'Resident', 'Purpose', 'Status', 'Arrival', 'Departure', 'Action'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-            <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.visitor_name}<br />{row.visitor_phone}</TableCell><TableCell>{row.resident_name}<br />{row.reg_no}</TableCell><TableCell>{row.purpose}</TableCell><TableCell>{row.status.replace('_', ' ')}</TableCell><TableCell>{row.arrival_at ? new Date(row.arrival_at).toLocaleString() : '—'}</TableCell><TableCell>{row.departure_at ? new Date(row.departure_at).toLocaleString() : '—'}</TableCell><TableCell>{row.status === 'expected' && <><Button size="small" onClick={() => updateVisitor(row, 'checked_in')}>Check in</Button><Button size="small" color="error" onClick={() => updateVisitor(row, 'cancelled')}>Cancel</Button></>}{row.status === 'checked_in' && <Button size="small" onClick={() => updateVisitor(row, 'checked_out')}>Check out</Button>}</TableCell></TableRow>)}
-                {!rows.length && <TableRow><TableCell colSpan={7} align="center">No visitor records</TableCell></TableRow>}</TableBody></Table></TableContainer>}
-
         {activeTab === 'Inspections' && <>
             <Button variant="contained" sx={{ mb: 2 }} onClick={() => setInspectionDialog(true)}>Record inspection</Button>
             <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Room', 'Inspector', 'Condition', 'Cleanliness', 'Safety', 'Room status', 'Notes'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
@@ -388,10 +382,10 @@ export default function OperationsDashboard() {
         </>}
 
         {activeTab === 'Payments' && <>
-            <Typography variant="h6" sx={{ mb: 1 }}>Payment verification</Typography>
-            <TableContainer component={Paper} sx={{ mb: 3 }}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Registration', 'Room', 'Method', 'Reference', 'Amount', 'Status', 'Action'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{financePayments.map(payment => <TableRow key={payment.id}><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.full_name}</TableCell><TableCell>{payment.reg_no}</TableCell><TableCell>{formatHostelName(payment.hostel)} {formatRoomNumber(payment.room_number)}</TableCell><TableCell>{formatPaymentMethod(payment.payment_method)}</TableCell><TableCell>{payment.mpesa_code || '—'}</TableCell><TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell><TableCell>{payment.status}</TableCell><TableCell>{payment.status === 'pending' && <Button size="small" onClick={() => confirmPayment(payment)}>Confirm</Button>}</TableCell></TableRow>)}
-                    {!financePayments.length && <TableRow><TableCell colSpan={9} align="center">No payments found</TableCell></TableRow>}</TableBody></Table></TableContainer>
+            <Alert severity="info" sx={{ mb: 2 }}>Safaricom confirms M-Pesa payments automatically. Staff can review payment records but cannot mark a student-entered code as paid.</Alert>
+            <TableContainer component={Paper} sx={{ mb: 3 }}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Registration', 'Room', 'Method', 'Safaricom receipt', 'Amount', 'Status'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
+                <TableBody>{financePayments.map(payment => <TableRow key={payment.id}><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.full_name}</TableCell><TableCell>{payment.reg_no}</TableCell><TableCell>{formatHostelName(payment.hostel)} {formatRoomNumber(payment.room_number)}</TableCell><TableCell>{formatPaymentMethod(payment.payment_method)}</TableCell><TableCell>{payment.status === 'confirmed' ? payment.mpesa_code || '—' : 'Awaiting M-Pesa verification'}</TableCell><TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell><TableCell>{payment.status}</TableCell></TableRow>)}
+                    {!financePayments.length && <TableRow><TableCell colSpan={8} align="center">No payments found</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
         {activeTab === 'Reports' && <>
@@ -412,7 +406,7 @@ export default function OperationsDashboard() {
                         ['Confirmed income', `KES ${Number(report.payments.collected).toLocaleString()}`],
                         ['Pending payments', `KES ${Number(report.payments.pending).toLocaleString()}`],
                         ['Outstanding balance', `KES ${report.balance_rows.reduce((sum, row) => sum + Number(row.balance), 0).toLocaleString()}`],
-                        ['Occupied beds', report.rooms.occupied], ['Visitors inside', report.visitors_checked_in],
+                        ['Occupied beds', report.rooms.occupied],
                         ['Open requests', report.requests.filter(row => ['open', 'in_progress'].includes(row.status)).reduce((sum, row) => sum + Number(row.total), 0)],
                     ].map(([label, value]) => <Paper key={label} sx={{ p: 2 }}><Typography variant="caption" color="text.secondary">{label}</Typography><Typography variant="h6" fontWeight={700}>{value}</Typography></Paper>)}
                 </Box>
@@ -420,7 +414,7 @@ export default function OperationsDashboard() {
                 <TableContainer component={Paper} sx={{ mb: 3 }}><Table size="small"><TableHead><TableRow>{['Student', 'Registration', 'Room', 'Semester', 'Due', 'Paid', 'Balance'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
                     <TableBody>{report.balance_rows.map(row => <TableRow key={row.booking_id}><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)}</TableCell><TableCell>{row.semester}</TableCell><TableCell>KES {Number(row.amount_due).toLocaleString()}</TableCell><TableCell>KES {Number(row.amount_paid).toLocaleString()}</TableCell><TableCell>KES {Number(row.balance).toLocaleString()}</TableCell></TableRow>)}
                         {!report.balance_rows.length && <TableRow><TableCell colSpan={7} align="center">No approved bookings</TableCell></TableRow>}</TableBody></Table></TableContainer>
-                <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Reg No', 'Room', 'Method', 'Reference', 'Amount', 'Status'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
+                <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Reg No', 'Room', 'Method', 'Safaricom receipt', 'Amount', 'Status'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
                     <TableBody>{reportRows.map(row => <TableRow key={row.id}><TableCell>{new Date(row.payment_date).toLocaleDateString()}</TableCell><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)}</TableCell><TableCell>{formatPaymentMethod(row.payment_method)}</TableCell><TableCell>{row.mpesa_code || '—'}</TableCell><TableCell>KES {Number(row.amount).toLocaleString()}</TableCell><TableCell>{row.status}</TableCell></TableRow>)}
                         {!reportRows.length && <TableRow><TableCell colSpan={8} align="center">No payments for this period</TableCell></TableRow>}</TableBody></Table></TableContainer>
             </>}
@@ -458,7 +452,7 @@ export default function OperationsDashboard() {
                 <DialogActions><Button onClick={() => setDateDialog(null)}>Cancel</Button><Button type="submit" variant="contained">Save dates</Button></DialogActions>
             </Box>
         </Dialog>
-        <Dialog open={inspectionDialog} onClose={() => setInspectionDialog(false)} maxWidth="sm" fullWidth>
+        <Dialog open={inspectionDialog} onClose={() => { if (!inspectionSubmitting) setInspectionDialog(false); }} maxWidth="sm" fullWidth>
             <Box component="form" onSubmit={recordInspection}>
                 <DialogTitle>Record room inspection</DialogTitle>
                 <DialogContent sx={{ display: 'grid', gap: 2, pt: '8px !important' }}>
@@ -476,7 +470,7 @@ export default function OperationsDashboard() {
                     </TextField>
                     <TextField label="Notes / action needed" multiline minRows={3} value={inspectionForm.notes} onChange={e => setInspectionForm({ ...inspectionForm, notes: e.target.value })} />
                 </DialogContent>
-                <DialogActions><Button onClick={() => setInspectionDialog(false)}>Cancel</Button><Button type="submit" variant="contained" disabled={!rooms.length}>Save inspection</Button></DialogActions>
+                <DialogActions><Button onClick={() => setInspectionDialog(false)} disabled={inspectionSubmitting}>Cancel</Button><Button type="submit" variant="contained" disabled={!rooms.length || inspectionSubmitting}>{inspectionSubmitting ? 'Saving…' : 'Save inspection'}</Button></DialogActions>
             </Box>
         </Dialog>
     </Box>;

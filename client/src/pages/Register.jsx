@@ -43,11 +43,10 @@ export default function Register() {
         else if (!/[A-Z]/.test(form.password)) e.password = 'Must contain at least one capital letter';
         else if (!/[0-9]/.test(form.password)) e.password = 'Must contain at least one number';
         if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords do not match';
-        if (form.phoneNumber) {
-            const digits = form.phoneNumber.replace(/\D/g, '');
-            if (digits.length < 7) e.phoneNumber = 'Phone number is too short';
-            if (digits.length > 12) e.phoneNumber = 'Phone number is too long';
-        }
+        const nationalDigits = form.phoneNumber.replace(/\D/g, '').replace(/^0+/, '');
+        const fullPhone = `${countryCode.replace(/\D/g, '')}${nationalDigits}`;
+        if (!form.phoneNumber.trim()) e.phoneNumber = 'Phone number is required for login and M-Pesa';
+        else if (!/^[1-9]\d{9,14}$/.test(fullPhone)) e.phoneNumber = 'Enter a valid phone number';
         setErrors(e);
         return !Object.keys(e).length;
     };
@@ -55,7 +54,7 @@ export default function Register() {
     const hostelPreference = form.gender === 'Female' ? 'Girls' : 'Boys';
     const selectedProgramme = programmes.find(programme => programme.name === form.course);
     const registrationNumber = selectedProgramme && form.regGroup && form.regSequence && /^\d{4}$/.test(form.regYear)
-        ? `${selectedProgramme.code}-${form.regGroup.padStart(2, '0')}-${form.regSequence.padStart(4, '0')}/${form.regYear}`
+        ? `${selectedProgramme.code}-${form.regGroup.padStart(2, '0')}'${form.regSequence.padStart(4, '0')}/${form.regYear}`
         : '';
 
     const handleSubmit = async (e) => {
@@ -64,7 +63,7 @@ export default function Register() {
         if (!validate()) return;
         setLoading(true);
         try {
-            const phone = form.phoneNumber ? countryCode + form.phoneNumber.replace(/^0+/, '') : '';
+            const phone = countryCode + form.phoneNumber.replace(/\D/g, '').replace(/^0+/, '');
             const { phoneNumber: _phoneNumber, confirmPassword: _confirmPassword, regGroup: _regGroup, regSequence: _regSequence, regYear: _regYear, ...rest } = form;
             const user = await register({ ...rest, reg_no: registrationNumber, phone, gender: form.gender, hostel_preference: hostelPreference });
             toast.success('Registration successful! Opening your dashboard...');
@@ -124,10 +123,11 @@ export default function Register() {
                                 error={!!errors.regYear} helperText={errors.regYear} />
                         </Box>
                         <Typography variant="caption" sx={{ display: 'block', mt: -1.5, mb: 2, color: '#4b5563' }}>
-                            Enter a number from 0-99, a number from 0-9999, and a four-digit year.
+                            Example: BSE-01'0046/2024. Enter your own programme code, group, student number, and admission year.
+                            Format is checked here; this app is not connected to the university student registry.
                         </Typography>
                         <Typography variant="body2" sx={{ mt: -1.5, mb: 2.5, color: '#4b5563' }}>
-                            Registration number: {registrationNumber || (selectedProgramme ? `${selectedProgramme.code}-00-0000/YYYY` : 'Select a programme to see its code')}
+                            Admission number: {registrationNumber || (selectedProgramme ? `${selectedProgramme.code}-00'0000/YYYY` : 'Select a programme to see its code')}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1, mb: 2.5 }}>
                             <Select value={countryCode} onChange={e => setCountryCode(e.target.value)}
@@ -136,10 +136,10 @@ export default function Register() {
                                     <MenuItem key={c.code} value={c.code}>{c.label}</MenuItem>
                                 ))}
                             </Select>
-                            <TextField placeholder="Phone number (optional)" fullWidth
+                            <TextField placeholder="Phone number (required)" required fullWidth
                                 sx={{ '& input': { color: '#000' }, '& input::placeholder': { color: '#000', opacity: 0.7 } }}
                                 value={form.phoneNumber} onChange={update('phoneNumber')}
-                                error={!!errors.phoneNumber} helperText={errors.phoneNumber}
+                                error={!!errors.phoneNumber} helperText={errors.phoneNumber || 'Use the number you can access for login codes and M-Pesa prompts.'}
                                 inputProps={{ inputMode: 'numeric' }} />
                         </Box>
                         <TextField label="Password" placeholder="Enter password" type={showPassword ? 'text' : 'password'} fullWidth required sx={{ ...inputSx, mb: pwFocused ? 0.5 : 2.5 }} value={form.password} onChange={update('password')}

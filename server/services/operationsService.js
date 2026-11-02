@@ -9,6 +9,13 @@ const userRoles = ['student', ...staffRoles];
 const requestStatuses = ['open', 'in_progress', 'resolved', 'closed'];
 const visitorStatuses = ['checked_in', 'checked_out', 'cancelled'];
 
+const isValidDate = (value) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+};
+
 const audit = async (actorId, action, entityType, entityId, details) => {
     try {
         await model.writeAuditLog({ actorId, action, entityType, entityId, details });
@@ -20,10 +27,9 @@ const audit = async (actorId, action, entityType, entityId, details) => {
 const getDateRange = (from, to) => {
     const today = new Date().toISOString().slice(0, 10);
     const defaultFrom = `${today.slice(0, 7)}-01`;
-    const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
     const start = from || defaultFrom;
     const end = to || today;
-    if (!validDate(start) || !validDate(end) || start > end) return { error: 'Enter a valid date range', status: 400 };
+    if (!isValidDate(start) || !isValidDate(end) || start > end) return { error: 'Enter a valid date range', status: 400 };
     return { from: start, to: end };
 };
 
@@ -266,13 +272,6 @@ const addMonths = (dateValue, months) => {
     const normalizedMonth = targetMonth % 12;
     const lastDay = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
     return `${targetYear}-${String(normalizedMonth + 1).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
-};
-
-const isValidDate = (value) => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
-    const [year, month, day] = value.split('-').map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
-    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 };
 
 const listPeriods = async () => {

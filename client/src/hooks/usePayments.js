@@ -28,11 +28,6 @@ export default function usePayments({ fetchAll = false } = {}) {
         } finally { setLoading(false); }
     }, []);
 
-    const submit = useCallback(async (data) => {
-        const res = await paymentService.submitPayment(data);
-        return res.data;
-    }, []);
-
     const initStkPush = useCallback(async (phone, bookingId) => {
         const res = await paymentService.stkPush(phone, bookingId);
         return res.data;
@@ -43,15 +38,10 @@ export default function usePayments({ fetchAll = false } = {}) {
         return res.data;
     }, []);
 
-    const confirm = useCallback(async (id) => {
-        const res = await paymentService.confirmPayment(id);
-        return res.data;
-    }, []);
-
     useEffect(() => {
         if (fetchAll) fetchAllPayments();
         else fetchMyPayments();
     }, [fetchAll, fetchAllPayments, fetchMyPayments]);
 
-    return { payments, loading, error, fetchMyPayments, fetchAllPayments, submit, initStkPush, queryStkStatus, confirm };
+    return { payments, loading, error, fetchMyPayments, fetchAllPayments, initStkPush, queryStkStatus };
 }

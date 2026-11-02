@@ -21,6 +21,7 @@ import CreateAdmin from './pages/CreateAdmin';
 import ForgotPassword from './pages/ForgotPassword';
 import StudentServices from './pages/StudentServices';
 import OperationsDashboard from './pages/OperationsDashboard';
+import Help from './pages/Help';
 
 function Loading() {
     return (
@@ -69,6 +70,7 @@ function AppRoutes({ showSplash, onSplashDone }) {
                     <Route path="/forgot-password" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><ForgotPassword /></PageTransition>} />
                     <Route path="/dashboard" element={<StudentRoute><Dashboard /></StudentRoute>} />
                     <Route path="/profile" element={user?.role === 'student' ? <StudentRoute><Profile /></StudentRoute> : <AdminRoute allowAccounts><Profile /></AdminRoute>} />
+                    <Route path="/help" element={['admin', 'accounts', 'warden'].includes(user?.role) ? <AdminRoute allowAccounts><Help /></AdminRoute> : <StudentRoute><Help /></StudentRoute>} />
 
                     <Route path="/my-bookings" element={<StudentRoute><MyBookings /></StudentRoute>} />
                     <Route path="/notices" element={<StudentRoute><Notices /></StudentRoute>} />

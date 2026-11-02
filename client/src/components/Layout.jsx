@@ -17,13 +17,15 @@ const studentLinks = [
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'My Bookings', path: '/my-bookings' },
     { label: 'Menu', path: '/menu' },
-    { label: 'Requests & Visitors', path: '/services' },
+    { label: 'Requests', path: '/services' },
     { label: 'Notices', path: '/notices' },
+    { label: 'How it works', path: '/help' },
     { label: 'Profile', path: '/profile' },
 ];
 const adminLinks = [
     { label: 'Admin Panel', path: '/admin' },
     { label: 'Operations', path: '/operations' },
+    { label: 'How it works', path: '/help' },
     { label: 'Profile', path: '/profile' },
 ];
 
@@ -52,7 +54,7 @@ export default function Layout({ children }) {
 
     const handleLogout = () => { logout(); navigate('/login'); };
     const links = user?.role === 'accounts'
-        ? adminLinks.filter(link => ['/operations', '/profile'].includes(link.path))
+        ? adminLinks.filter(link => ['/operations', '/help', '/profile'].includes(link.path))
         : ['admin', 'warden'].includes(user?.role) ? adminLinks : studentLinks;
     const navTo = (path) => { navigate(path); setDrawerOpen(false); };
 

@@ -5,15 +5,16 @@ import {
     TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { formatHostelName, formatPaymentMethod, formatRoomNumber } from '../utils/helpers';
 
 const emptyRequest = { request_type: 'maintenance', title: '', description: '', priority: 'normal' };
 
 export default function StudentServices() {
+    const { user } = useAuth();
     const [tab, setTab] = useState(0);
     const [requests, setRequests] = useState([]);
-    const [visitors, setVisitors] = useState([]);
     const [payments, setPayments] = useState([]);
     const [balances, setBalances] = useState([]);
     const [currentStay, setCurrentStay] = useState(null);
@@ -21,18 +22,16 @@ export default function StudentServices() {
     const [checkoutRequests, setCheckoutRequests] = useState([]);
     const [checkoutReason, setCheckoutReason] = useState('');
     const [requestForm, setRequestForm] = useState(emptyRequest);
-    const [visitorForm, setVisitorForm] = useState({ visitor_name: '', visitor_phone: '', purpose: '' });
     const [receipt, setReceipt] = useState(null);
 
     const refresh = async () => {
         try {
-            const [requestRes, visitorRes, paymentRes, balanceRes, stayRes, checkoutRes] = await Promise.all([
-                api.get('/operations/requests'), api.get('/operations/visitors'),
+            const [requestRes, paymentRes, balanceRes, stayRes, checkoutRes] = await Promise.all([
+                api.get('/operations/requests'),
                 api.get('/payments/my'), api.get('/operations/balances'),
                 api.get('/operations/my-stay'), api.get('/operations/checkout-requests'),
             ]);
             setRequests(requestRes.data);
-            setVisitors(visitorRes.data);
             setPayments(paymentRes.data);
             setBalances(balanceRes.data);
             setCurrentStay(stayRes.data.stay);
@@ -47,13 +46,12 @@ export default function StudentServices() {
     useEffect(() => {
         let active = true;
         Promise.all([
-            api.get('/operations/requests'), api.get('/operations/visitors'),
+            api.get('/operations/requests'),
             api.get('/payments/my'), api.get('/operations/balances'),
             api.get('/operations/checkout-requests'),
-        ]).then(([requestRes, visitorRes, paymentRes, balanceRes, checkoutRes]) => {
+        ]).then(([requestRes, paymentRes, balanceRes, checkoutRes]) => {
             if (!active) return;
             setRequests(requestRes.data);
-            setVisitors(visitorRes.data);
             setPayments(paymentRes.data);
             setBalances(balanceRes.data);
             setCheckoutRequests(checkoutRes.data);
@@ -68,7 +66,7 @@ export default function StudentServices() {
             if (active) setStayLoaded(true);
         });
         return () => { active = false; };
-    }, []);
+    }, [user.id]);
 
     const submitRequest = async (event) => {
         event.preventDefault();
@@ -79,17 +77,6 @@ export default function StudentServices() {
             await refresh();
             toast.success('Request submitted');
         } catch (error) { toast.error(error.response?.data?.error || 'Could not submit request'); }
-    };
-
-    const registerVisitor = async (event) => {
-        event.preventDefault();
-        if (!currentStay) return toast.error('You need an active checked-in room to register a visitor');
-        try {
-            await api.post('/operations/visitors', visitorForm);
-            setVisitorForm({ visitor_name: '', visitor_phone: '', purpose: '' });
-            await refresh();
-            toast.success('Visitor registered');
-        } catch (error) { toast.error(error.response?.data?.error || 'Could not register visitor'); }
     };
 
     const submitCheckoutRequest = async (event) => {
@@ -117,12 +104,11 @@ export default function StudentServices() {
             </Alert>}
             <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
                 <Tab label="Requests" disabled={!currentStay} />
-                <Tab label="Visitors" disabled={!currentStay} />
                 <Tab label="Payments" />
                 <Tab label="Checkout" disabled={!currentStay} />
             </Tabs>
             {!currentStay && stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>
-                An active checked-in room is required for maintenance requests, visitor registration, and checkout. Payments remain available.
+                An active checked-in room is required for maintenance requests and checkout. Payments remain available.
             </Alert>}
             {!currentStay && !stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>Checking your current room assignment…</Alert>}
 
@@ -151,25 +137,7 @@ export default function StudentServices() {
                 </TableContainer>
             </>}
 
-            {tab === 1 && currentStay && <>
-                <Alert severity="info" sx={{ mb: 2 }}>Register expected visitors here. Hostel staff record arrival and departure at the gate.</Alert>
-                <Paper component="form" onSubmit={registerVisitor} sx={{ p: 2, mb: 3 }}>
-                    <Typography variant="h6" gutterBottom>Register a visitor</Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
-                        <TextField label="Visitor name" required value={visitorForm.visitor_name} onChange={e => setVisitorForm({ ...visitorForm, visitor_name: e.target.value })} />
-                        <TextField label="Phone (optional)" value={visitorForm.visitor_phone} onChange={e => setVisitorForm({ ...visitorForm, visitor_phone: e.target.value })} />
-                        <TextField label="Purpose" required value={visitorForm.purpose} onChange={e => setVisitorForm({ ...visitorForm, purpose: e.target.value })} />
-                    </Box>
-                    <Button type="submit" variant="contained" sx={{ mt: 2 }}>Register visitor</Button>
-                </Paper>
-                <TableContainer component={Paper}><Table size="small">
-                    <TableHead><TableRow>{['Visitor', 'Purpose', 'Status', 'Expected / arrival', 'Departure'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                    <TableBody>{visitors.map(row => <TableRow key={row.id}><TableCell>{row.visitor_name}{row.visitor_phone ? ` (${row.visitor_phone})` : ''}</TableCell><TableCell>{row.purpose}</TableCell><TableCell><Chip size="small" label={row.status.replace('_', ' ')} /></TableCell><TableCell>{row.arrival_at ? new Date(row.arrival_at).toLocaleString() : 'Expected'}</TableCell><TableCell>{row.departure_at ? new Date(row.departure_at).toLocaleString() : '—'}</TableCell></TableRow>)}
-                        {!visitors.length && <TableRow><TableCell colSpan={5} align="center">No visitors registered</TableCell></TableRow>}</TableBody>
-                </Table></TableContainer>
-            </>}
-
-            {tab === 2 && <>
+            {tab === 1 && <>
                 <Paper sx={{ p: 2, mb: 3 }}>
                     <Typography variant="h6" gutterBottom>Outstanding balances</Typography>
                     <TableContainer><Table size="small"><TableHead><TableRow>{['Room', 'Semester', 'Amount due', 'Paid', 'Balance'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
@@ -186,11 +154,12 @@ export default function StudentServices() {
                 </Paper>
             </>}
 
-            {tab === 3 && currentStay && <>
+            {tab === 2 && currentStay && <>
                 <Typography variant="h6" gutterBottom>Request checkout</Typography>
                 {currentStay ? <Paper sx={{ p: 2, mb: 3 }}>
                     <Typography fontWeight={600}>{formatHostelName(currentStay.hostel)} · Room {formatRoomNumber(currentStay.room_number)}</Typography>
                     <Typography color="text.secondary">Campus: {currentStay.campus} · Period: {currentStay.semester}</Typography>
+                    <Alert severity="info" sx={{ mt: 2 }}>You can request checkout after staff check you in. A warden or admin must approve the request; approval completes your stay and releases the bed.</Alert>
                     {checkoutRequests.some((request) => request.booking_id === currentStay.id && request.status === 'pending')
                         ? <Alert severity="info" sx={{ mt: 2 }}>Your checkout request is awaiting approval from the admin or warden.</Alert>
                         : <Paper component="form" onSubmit={submitCheckoutRequest} elevation={0} sx={{ mt: 2 }}>
@@ -212,7 +181,7 @@ export default function StudentServices() {
                         ['Receipt ID', receipt.id], ['Student', receipt.full_name], ['Registration', receipt.reg_no],
                         ['Room', `${formatHostelName(receipt.hostel)} ${formatRoomNumber(receipt.room_number)}`], ['Campus', receipt.campus], ['Semester', receipt.semester],
                         ['Amount', `KES ${Number(receipt.amount).toLocaleString()}`], ['Method', formatPaymentMethod(receipt.payment_method)],
-                        ['Reference', receipt.mpesa_code || '—'], ['Status', receipt.status],
+                        ['Safaricom receipt', receipt.mpesa_code || '—'], ['Status', receipt.status],
                         ['Date', new Date(receipt.payment_date).toLocaleString()],
                     ].map(([label, value]) => <Box key={label}><Typography variant="caption" color="text.secondary">{label}</Typography><Typography>{value}</Typography></Box>)}
                 </Box>}</DialogContent>

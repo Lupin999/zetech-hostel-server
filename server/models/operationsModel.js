@@ -366,7 +366,9 @@ const createPeriod = async ({ campus, hostel, semester, opensOn, durationMonths,
 
 const getPeriodBookingAccess = (campus, hostel) => pool.query(
     `SELECT COUNT(*) AS configured,
-        SUM(status IN ('scheduled', 'open') AND opens_on <= CURDATE() AND closes_on > CURDATE()) AS is_open
+        SUM(status IN ('scheduled', 'open') AND opens_on <= CURDATE() AND closes_on > CURDATE()) AS is_open,
+        MAX(CASE WHEN status = 'open' AND opens_on <= CURDATE() AND closes_on > CURDATE()
+            THEN semester END) AS active_semester
      FROM hostel_periods WHERE campus = ? AND hostel = ?`,
     [campus, hostel]
 );

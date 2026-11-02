@@ -106,6 +106,17 @@ test('date reports reject reversed or malformed ranges', async () => {
     assert.match(result.error, /valid date range/);
 });
 
+test('date reports reject impossible calendar dates', async () => {
+    model.getOverview = async () => ({});
+    model.getPaymentReport = async () => [[], []];
+    model.getBalances = async () => [[], []];
+
+    const result = await service.getReports('2026-02-31', '2026-03-01');
+
+    assert.equal(result.status, 400);
+    assert.match(result.error, /valid date range/);
+});
+
 test('wardens see only their own balances; finance staff see the ledger', async () => {
     const requestedScopes = [];
     model.getBalances = async userId => {
@@ -117,6 +128,20 @@ test('wardens see only their own balances; finance staff see the ledger', async 
     await service.getBalances({ id: 15, role: 'accounts' });
 
     assert.deepEqual(requestedScopes, [14, null]);
+});
+
+test('student services only query records for the signed-in student', async () => {
+    const requestedScopes = [];
+    model.listRequests = async userId => { requestedScopes.push(userId); return [[]]; };
+    model.listCheckoutRequests = async userId => { requestedScopes.push(userId); return [[]]; };
+    model.getBalances = async userId => { requestedScopes.push(userId); return [[]]; };
+    const student = { id: 21, role: 'student' };
+
+    await service.listRequests(student);
+    await service.listCheckoutRequests(student);
+    await service.getBalances(student);
+
+    assert.deepEqual(requestedScopes, [21, 21, 21]);
 });
 
 test('checkout requests require an active checked-in stay', async () => {

@@ -20,6 +20,8 @@ export const formatRoomNumber = (roomNumber) => {
     return value && value !== '0' && value.toLowerCase() !== 'null' ? value : '—';
 };
 
+export const isSuspended = (value) => value === true || value === 1 || value === '1';
+
 export const formatPaymentMethod = (method) => {
     if (method === 'legacy_manual') return 'Legacy manual (historical)';
     if (method === 'mpesa') return 'M-Pesa';

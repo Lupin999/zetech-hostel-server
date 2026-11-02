@@ -140,7 +140,8 @@ export default function Profile() {
                                 <TextField label="Phone Number" fullWidth value={profileForm.phone}
                                     onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
                                     placeholder="e.g. +254712345678"
-                                    helperText="Used for phone login" />
+                                    required={user?.role === 'student'}
+                                    helperText="Required for students. Used for phone login and M-Pesa prompts." />
                                 {user?.role === 'student' ? (
                                     <TextField select label="Programme" fullWidth value={profileForm.course}
                                         onChange={e => setProfileForm({ ...profileForm, course: e.target.value })}

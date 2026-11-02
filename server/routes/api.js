@@ -38,182 +38,171 @@ router.get('/docs', (req, res) => {
         authentication: 'Bearer token in Authorization header',
         endpoints: {
             programmes: {
-                'GET /api/programmes': {
+                'View programme options': {
                     description: 'Get the Zetech programme options used for student registration and profiles',
                     response: '[array of programme objects with level, code, and name]'
                 }
             },
             auth: {
-                'POST /api/auth/register': {
+                'Create a student account': {
                     description: 'Register a new student account',
-                    body: { reg_no: 'CODE-00-0000/YYYY (code must match selected course)', email: 'string (required)', full_name: 'string (required)', course: 'Zetech programme (required)', password: 'string (min 6, alphanumeric, 1 capital)', phone: 'string (optional, with country code e.g. +254712345678)' },
+                    body: { reg_no: "BSE-01'0046/2024 (programme code, group, student number, and admission year)", email: 'string (required)', full_name: 'string (required)', course: 'Zetech programme (required)', password: 'string (min 6, alphanumeric, 1 capital)', phone: 'string (required, e.g. 0712345678 or +254712345678)' },
                     response: { message: 'User registered successfully', token: 'JWT token', user: 'Registered student profile' }
                 },
-                'POST /api/auth/login': {
+                'Sign in with email and password': {
                     description: 'Login with email and password',
                     body: { email: 'string (required)', password: 'string (required)' },
                     response: { token: 'JWT token', user: 'user object' }
                 },
-                'POST /api/auth/send-otp': {
+                'Request a phone sign-in code': {
                     description: 'Send OTP code to email linked to phone number',
                     body: { phone: 'string (required, with country code)' },
                     response: { message: 'OTP sent to ma***@gmail.com', maskedEmail: 'string' }
                 },
-                'POST /api/auth/verify-otp': {
+                'Sign in with a phone code': {
                     description: 'Verify OTP and login',
                     body: { phone: 'string (required)', code: 'string (6 digits)' },
                     response: { token: 'JWT token', user: 'user object' }
                 },
-                'GET /api/auth/verify': {
+                'Check the signed-in account': {
                     description: 'Verify current token and get user info',
                     auth: 'required',
                     response: { user: 'user object' }
                 },
-                'PUT /api/auth/profile/info': {
+                'Update account details': {
                     description: 'Update profile name and course',
                     auth: 'required',
                     body: { full_name: 'string (required)', course: 'string (optional)' },
                     response: { message: 'Profile updated', user: 'user object' }
                 },
-                'PUT /api/auth/profile': {
+                'Change account password': {
                     description: 'Change password',
                     auth: 'required',
                     body: { currentPassword: 'string', newPassword: 'string (min 6)' },
                     response: { message: 'Password updated successfully' }
                 },
-                'DELETE /api/auth/account': {
+                'Delete the signed-in account': {
                     description: 'Permanently delete the signed-in account and linked records',
                     auth: 'required',
                     body: { currentPassword: 'string (required)' },
                     response: { message: 'Account and linked booking/payment records permanently deleted' }
                 },
-                'POST /api/auth/create-admin': {
+                'Create an administrator account': {
                     description: 'Create admin account (requires admin secret)',
-                    body: { email: 'string (required)', full_name: 'string (required)', password: 'string (min 6)', phone: 'string (optional)', adminSecret: 'string (required)' },
+                    body: { email: 'string (required)', full_name: 'string (required)', password: 'string (min 6)', phone: 'string (required)', adminSecret: 'string (required)' },
                     response: { message: 'Admin account created successfully' }
                 }
             },
             rooms: {
-                'GET /api/rooms': {
+                'View available rooms': {
                     description: 'Get all rooms',
                     auth: 'required',
                     response: '[array of room objects]'
                 },
-                'POST /api/rooms': {
+                'Add a room': {
                     description: 'Add a new room (admin only)',
                     auth: 'required (admin)',
                     body: { room_number: 'string', hostel: 'Boys|Girls', campus: 'string', room_type: 'single|double|quad', capacity: 'number', price: 'number' },
                     response: { message: 'Room added' }
                 },
-                'PUT /api/rooms/:id': {
+                'Update a room': {
                     description: 'Update a room (admin only)',
                     auth: 'required (admin)',
                     response: { message: 'Room updated' }
                 },
-                'DELETE /api/rooms/:id': {
+                'Remove a room': {
                     description: 'Delete a room (admin only)',
                     auth: 'required (admin)',
                     response: { message: 'Room deleted' }
                 },
-                'GET /api/rooms/:id/beds': {
+                'View beds in a room': {
                     description: 'Get beds for a room',
                     auth: 'required',
                     response: '[array of bed objects]'
                 }
             },
             bookings: {
-                'GET /api/bookings/active': {
+                'View my current booking': {
                     description: 'Get current user active booking',
                     auth: 'required',
                     response: 'booking object or null'
                 },
-                'GET /api/bookings/status': {
+                'Check whether booking is open': {
                     description: 'Check if booking is open/closed',
                     auth: 'required',
                     response: { open: 'boolean' }
                 },
-                'POST /api/bookings': {
+                'Submit a room booking': {
                     description: 'Create a new booking',
                     auth: 'required',
                     body: { room_id: 'number', bed_id: 'number (optional)', semester: 'string', arrival_date: 'date (optional)' },
                     response: { message: 'Booking request submitted' }
                 },
-                'GET /api/bookings/my': {
+                'View my bookings': {
                     description: 'Get all my bookings',
                     auth: 'required',
                     response: '[array of booking objects]'
                 },
-                'GET /api/bookings/all': {
+                'Review all bookings': {
                     description: 'Get all bookings (admin or warden)',
                     auth: 'required (admin or warden)',
                     response: '[array of booking objects]'
                 },
-                'PUT /api/bookings/:id/status': {
+                'Approve or reject a booking': {
                     description: 'Approve or reject booking (admin or warden)',
                     auth: 'required (admin or warden)',
                     body: { status: 'approved|rejected', reason: 'required on rejection (5-500 characters)' },
                     response: { message: 'Booking approved/rejected', reason: 'rejection reason or null' }
                 },
-                'PUT /api/bookings/:id/suspend': {
+                'Suspend or unsuspend a booking': {
                     description: 'Suspend or unsuspend booking (admin only)',
                     auth: 'required (admin)',
                     body: { suspended: 'boolean', reason: 'string (optional)' },
                     response: { message: 'Booking suspended/unsuspended' }
                 },
-                'PUT /api/bookings/toggle': {
+                'Open or close booking requests': {
                     description: 'Open or close bookings (admin only)',
                     auth: 'required (admin)',
                     body: { open: 'boolean' },
                     response: { open: 'boolean', message: 'string' }
                 },
-                'DELETE /api/bookings/:id': {
+                'Cancel a pending booking': {
                     description: 'Cancel a pending booking',
                     auth: 'required',
                     response: { message: 'Booking cancelled' }
                 }
             },
             payments: {
-                'POST /api/payments/stk-push': {
-                    description: 'Initiate M-Pesa STK push payment',
+                'Request the M-Pesa deposit': {
+                    description: 'Request the fixed KES 12,000 M-Pesa hostel deposit',
                     auth: 'required',
-                    body: { phone: 'string (254...)', booking_id: 'number' },
-                    response: { CheckoutRequestID: 'string', message: 'string' }
+                    body: { phone: 'string (Kenyan 07... or 254...)', booking_id: 'number' },
+                    response: { checkoutRequestId: 'string', amount: 12000, message: 'string' }
                 },
-                'POST /api/payments/stk-query': {
+                'Check M-Pesa payment status': {
                     description: 'Check STK push payment status',
                     auth: 'required',
                     body: { checkout_request_id: 'string' },
                     response: { status: 'string' }
                 },
-                'POST /api/payments': {
-                    description: 'Submit manual payment record',
-                    auth: 'required',
-                    body: { booking_id: 'number', amount: 'number (min 12000)', payment_method: 'mpesa', mpesa_code: 'required M-Pesa transaction code' },
-                    response: { message: 'Payment submitted' }
-                },
-                'GET /api/payments/my': {
+                'View my payments': {
                     description: 'Get my payments',
                     auth: 'required',
                     response: '[array of payment objects]'
                 },
-                'GET /api/payments/all': {
-                    description: 'Get all payments (admin only)',
-                    auth: 'required (admin)',
+                'Review payment records': {
+                    description: 'Get all payment records (admin or accounts)',
+                    auth: 'required (admin or accounts)',
                     response: '[array of payment objects]'
-                },
-                'PATCH /api/payments/:id/confirm': {
-                    description: 'Confirm a payment (admin only)',
-                    auth: 'required (admin)',
-                    response: { message: 'Payment confirmed' }
                 }
             },
             notices: {
-                'GET /api/notices': {
+                'View hostel notices': {
                     description: 'Get all notices',
                     auth: 'required',
                     response: '[array of notice objects]'
                 },
-                'POST /api/notices': {
+                'Post a hostel notice': {
                     description: 'Create a notice (admin only)',
                     auth: 'required (admin)',
                     body: { title: 'string', message: 'string' },
@@ -221,24 +210,24 @@ router.get('/docs', (req, res) => {
                 }
             },
             notifications: {
-                'GET /api/notifications': {
+                'View my notifications': {
                     description: 'Get my notifications',
                     auth: 'required',
                     response: '[array of notification objects]'
                 },
-                'PUT /api/notifications/read-all': {
+                'Mark all notifications as read': {
                     description: 'Mark all notifications as read',
                     auth: 'required',
                     response: { message: 'All marked as read' }
                 }
             },
             health: {
-                'GET /api/health': {
+                'View my health profile': {
                     description: 'Get my health profile',
                     auth: 'required',
                     response: 'health profile object'
                 },
-                'POST /api/health': {
+                'Save my health profile': {
                     description: 'Save/update health profile',
                     auth: 'required',
                     body: { medical_conditions: 'string', dietary_restrictions: 'string' },
@@ -246,19 +235,20 @@ router.get('/docs', (req, res) => {
                 }
             },
             operations: {
-                description: 'Resident lifecycle, checkout approvals, hostel periods, maintenance, visitor, finance reporting, student administration, and audit workflows',
+                description: 'Resident lifecycle, checkout approvals, hostel periods, maintenance requests, inspections, finance reporting, student administration, and audit workflows',
                 basePath: '/api/operations',
                 endpoints: [
-                    'GET /students (admin)', 'PATCH /students/:id/role (admin)',
-                    'GET /stays (admin/warden)', 'PUT /stays/:id/check-in (admin/warden)',
-                    'PUT /stays/:id/check-out (admin/warden)', 'PUT /stays/:id/dates (admin/warden)',
-                    'GET /history (admin/warden)', 'GET|POST /checkout-requests (student scoped)',
-                    'PATCH /checkout-requests/:id/decision (admin/warden)', 'GET|POST /periods (admin)',
-                    'GET|POST /requests (student scoped)', 'PATCH /requests/:id (admin/warden)',
-                    'GET|POST /visitors (student scoped)', 'PATCH /visitors/:id/status (admin/warden)',
-                    'GET|POST /inspections (admin/warden)', 'PATCH /rooms/:id/status (admin/warden)',
-                    'GET /payments/:id/receipt (owner or staff)', 'GET /balances (owner or staff)',
-                    'GET /reports (admin/accounts)', 'GET /audit (admin)',
+                    'View and manage student roles (admin)',
+                    'Review current stays and check residents in or out (admin/warden)',
+                    'Update resident stay dates and view stay history (admin/warden)',
+                    'Submit or review checkout requests (student scoped; admin/warden review)',
+                    'Create hostel periods (admin)',
+                    'Submit maintenance requests or complaints (student scoped)',
+                    'Review resident requests (admin/warden)',
+                    'Record room inspections and update room status (admin/warden)',
+                    'View a payment receipt or personal balance (owner or authorized staff)',
+                    'View finance reports (admin/accounts)',
+                    'Review audit history (admin)',
                 ]
             }
         }

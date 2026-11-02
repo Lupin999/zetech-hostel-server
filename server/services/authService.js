@@ -5,6 +5,7 @@ const pool = require('../config/db');
 const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
 const logger = require('../utils/logger');
+const { normalizePhone } = require('../utils/phone');
 
 // OTP brute-force protection: max 3 wrong attempts per phone, locked 15 min
 const otpAttempts = new Map();
@@ -150,20 +151,17 @@ const deleteAccount = async (userId, currentPassword) => {
 };
 
 const sendOtp = async (phone) => {
-    // Try exact match first, then try local format (0...)
-    let [users] = await UserModel.findByPhone(phone);
-    if (!users.length) {
-        const local = '0' + phone.replace(/^\+\d{1,3}/, '');
-        [users] = await UserModel.findByPhone(local);
-    }
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) return { error: 'Enter a valid phone number', field: 'phone', status: 400 };
+    const [users] = await UserModel.findByPhone(normalizedPhone);
     if (!users.length) return { error: 'No account found with this phone number', field: 'phone', status: 404 };
 
     const user = users[0];
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    await OtpModel.invalidateExisting(phone);
-    await OtpModel.createOtp(phone, code, expiresAt);
+    await OtpModel.invalidateExisting(normalizedPhone);
+    await OtpModel.createOtp(normalizedPhone, code, expiresAt);
 
     // Send OTP via email
     const maskedEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
@@ -188,7 +186,7 @@ const sendOtp = async (phone) => {
         logger.error('[EMAIL ERROR] Failed to send OTP email', { message: emailErr.message });
         // Log the code to server console in dev so you can still test without email
         if (process.env.NODE_ENV !== 'production') {
-            logger.info(`[OTP FALLBACK] Code for ${phone}: ${code}`);
+            logger.info(`[OTP FALLBACK] Code for ${normalizedPhone}: ${code}`);
         }
     }
 
@@ -196,34 +194,36 @@ const sendOtp = async (phone) => {
 };
 
 const verifyOtp = async (phone, code) => {
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) return { error: 'Enter a valid phone number', field: 'phone', status: 400 };
     // Check if locked out
-    const attempts = otpAttempts.get(phone);
+    const attempts = otpAttempts.get(normalizedPhone);
     if (attempts && attempts.count >= OTP_MAX_ATTEMPTS) {
         const elapsed = Date.now() - attempts.lastAttempt;
         if (elapsed < OTP_LOCKOUT_MS) {
             const minsLeft = Math.ceil((OTP_LOCKOUT_MS - elapsed) / 60000);
             return { error: `Too many failed attempts. Try again in ${minsLeft} minutes`, field: 'code', status: 429 };
         }
-        otpAttempts.delete(phone);
+        otpAttempts.delete(normalizedPhone);
     }
 
-    const [otps] = await OtpModel.findValidOtp(phone, code);
+    const [otps] = await OtpModel.findValidOtp(normalizedPhone, code);
     if (!otps.length) {
         // Track failed attempt
-        const current = otpAttempts.get(phone) || { count: 0, lastAttempt: 0 };
+        const current = otpAttempts.get(normalizedPhone) || { count: 0, lastAttempt: 0 };
         current.count++;
         current.lastAttempt = Date.now();
-        otpAttempts.set(phone, current);
+        otpAttempts.set(normalizedPhone, current);
         const remaining = OTP_MAX_ATTEMPTS - current.count;
         const msg = remaining > 0 ? `Invalid or expired OTP code. ${remaining} attempts remaining` : 'Too many failed attempts. Locked for 15 minutes';
         return { error: msg, field: 'code', status: 401 };
     }
 
     // Success — clear attempts
-    otpAttempts.delete(phone);
+    otpAttempts.delete(normalizedPhone);
     await OtpModel.markUsed(otps[0].id);
 
-    const [users] = await UserModel.findByPhone(phone);
+    const [users] = await UserModel.findByPhone(normalizedPhone);
     if (!users.length) return { error: 'No account found with this phone number', status: 404 };
 
     const user = users[0];

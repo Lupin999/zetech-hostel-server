@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -18,8 +18,8 @@ import useRooms from '../hooks/useRooms';
 import useBookings from '../hooks/useBookings';
 import useNotices from '../hooks/useNotices';
 import usePayments from '../hooks/usePayments';
-import { formatDate, formatHostelName, formatRoomNumber, getTodayName } from '../utils/helpers';
-import { MENU_DATA, ASSETS_URL, CURRENT_SEMESTER } from '../utils/constants';
+import { formatDate, formatHostelName, formatRoomNumber, getTodayName, isSuspended } from '../utils/helpers';
+import { MENU_DATA, ASSETS_URL } from '../utils/constants';
 import dImg from '../d.jpg';
 
 const todayName = getTodayName();
@@ -60,6 +60,26 @@ export default function Dashboard() {
         // loadingData is managed by the bookings useEffect above — no need to set it here
     };
 
+    const fetchStudentStats = useCallback(async () => {
+        if (user?.role !== 'student') return;
+        try {
+            const { data: bookings } = await api.get('/bookings/my');
+            const approvedBooking = bookings.find(b => b.status === 'approved');
+            const paidForApproved = approvedBooking
+                ? payments.filter(p => p.booking_id === approvedBooking.id && p.status === 'confirmed').length
+                : 0;
+            setStats({
+                bookings: bookings.length,
+                paid: paidForApproved,
+                unpaid: approvedBooking && paidForApproved === 0 ? 1 : 0,
+            });
+        } catch {
+            setLoadingData(false);
+            return;
+        }
+        setLoadingData(false);
+    }, [user?.role, payments]);
+
     useEffect(() => {
         if (notices.length) setLatestNotice(notices[0]);
     }, [notices]);
@@ -85,20 +105,9 @@ export default function Dashboard() {
         };
 
     useEffect(() => {
-        if (user?.role === 'student') {
-            api.get('/bookings/my').then(bRes => {
-                const bookings = bRes.data;
-                // Count confirmed payments for the current approved booking only
-                const approvedBooking = bookings.find(b => b.status === 'approved');
-                const paidForApproved = approvedBooking
-                    ? payments.filter(p => p.booking_id === approvedBooking.id && p.status === 'confirmed').length
-                    : 0;
-                const unpaid = approvedBooking && paidForApproved === 0 ? 1 : 0;
-                setStats({ bookings: bookings.length, paid: paidForApproved, unpaid });
-                setLoadingData(false);
-            }).catch(() => { setLoadingData(false); });
-        } else { setLoadingData(false); }
-    }, [user, payments]);
+        if (user?.role === 'student') fetchStudentStats();
+        else setLoadingData(false);
+    }, [user?.role, fetchStudentStats]);
 
     const openBedDialog = async (room) => {
         setSelectedRoom(room); setSelectedBed(null); setArrivalDate(''); setBedFilter('all');
@@ -115,8 +124,9 @@ export default function Dashboard() {
         if (!arrivalDate) return toast.error('Select arrival date');
         setSubmitting(true);
         try {
-            await api.post('/bookings', { room_id: selectedRoom.id, bed_id: selectedBed.id, semester: CURRENT_SEMESTER, arrival_date: arrivalDate });
+            await api.post('/bookings', { room_id: selectedRoom.id, bed_id: selectedBed.id, arrival_date: arrivalDate });
             setDialogOpen(false); fetchAll();
+            await fetchStudentStats();
             Swal.fire({ icon: 'success', title: 'Booking Submitted!', text: `Room ${formatRoomNumber(selectedRoom.room_number)} Bed ${selectedBed.bed_number} (${selectedBed.position}) booked. Awaiting admin approval.`, confirmButtonColor: '#1a237e' });
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Booking Failed', text: err.response?.data?.error || 'Something went wrong', confirmButtonColor: '#1a237e' });
@@ -150,7 +160,7 @@ export default function Dashboard() {
             {/* Booking Status Alerts */}
             {user?.role === 'student' && !loadingData && (
                 <>
-                    {activeBooking?.suspended && (
+                    {isSuspended(activeBooking?.suspended) && (
                         <Alert severity="error" sx={{ mb: 3 }}>
                             <AlertTitle>🚫 Booking Suspended</AlertTitle>
                             Your booking for Room {formatRoomNumber(activeBooking.room_number)} has been suspended by admin.
@@ -158,7 +168,7 @@ export default function Dashboard() {
                             <br />Contact the hostel office to resolve this.
                         </Alert>
                     )}
-                    {activeBooking?.status === 'approved' && !activeBooking?.suspended && (
+                    {activeBooking?.status === 'approved' && !isSuspended(activeBooking?.suspended) && (
                         <Alert severity="success" icon={<CheckCircle />} sx={{ mb: 3 }}
                             action={<Button color="inherit" size="small" onClick={() => navigate('/my-bookings')}>Pay Now</Button>}>
                             <AlertTitle>Booking Approved!</AlertTitle>
@@ -316,12 +326,15 @@ export default function Dashboard() {
                         <Chip label={`KES ${selectedRoom ? Number(selectedRoom.price).toLocaleString() : ''}`} color="secondary" size="small" />
                     </Box>
 
-                    {/* Deposit info */}
+                    {/* Hostel fee and required deposit */}
                     <Alert severity="info" icon={<Payment />} sx={{ mb: 2, '& .MuiAlert-message': { width: '100%' } }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
-                            <Typography variant="body2">Booking Fee: <b>KES {selectedRoom ? Number(selectedRoom.price).toLocaleString() : '30,000'}</b></Typography>
-                            <Chip label="Min Deposit: KES 12,000" size="small" color="warning" />
+                            <Typography variant="body2">Total hostel fee: <b>KES {selectedRoom ? Number(selectedRoom.price).toLocaleString() : '—'}</b></Typography>
+                            <Chip label="Deposit after approval: KES 12,000" size="small" color="warning" />
                         </Box>
+                        <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                            The deposit is paid through an M-Pesa prompt, credited toward hostel fees, and is non-refundable. Staff will set the period label for your booking.
+                        </Typography>
                     </Alert>
 
                     {/* Bed position filter */}
@@ -398,7 +411,8 @@ export default function Dashboard() {
 
                     <TextField label="Arrival Date" type="date" fullWidth InputLabelProps={{ shrink: true }}
                         value={arrivalDate} onChange={e => setArrivalDate(e.target.value)}
-                        inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                        inputProps={{ min: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10) }}
+                        helperText="Choose today or a future date. The server checks that the calendar date exists."
                         sx={{ mb: 1 }} />
 
                     {selectedBed && (

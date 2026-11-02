@@ -8,6 +8,7 @@ const authService = require('../services/authService');
 const { authenticateToken } = require('../middleware/auth');
 const logger = require('../utils/logger');
 const programmes = require('../data/programmes');
+const { normalizePhone } = require('../utils/phone');
 
 const registerValidation = [
     body('email').isEmail().withMessage('Valid email is required'),
@@ -17,12 +18,17 @@ const registerValidation = [
     body('reg_no').exists({ checkFalsy: true }).withMessage('Reg number is required')
         .bail().isString().withMessage('Reg number must be text')
         .bail().trim().custom((value, { req }) => {
-            const match = /^([A-Z]{2,10})-(\d{2})-(\d{4})\/(\d{4})$/i.exec(value);
-            if (!match) throw new Error('Reg number must follow CODE-00-0000/YYYY');
+            const match = /^([A-Z]{2,10})-(\d{2})['-](\d{4})\/(\d{4})$/i.exec(value);
+            if (!match) throw new Error("Use the format CODE-00'0000/YYYY, for example BSE-01'0046/2024");
             const programme = programmes.find(item => item.name === req.body.course);
             if (!programme || match[1].toUpperCase() !== programme.code) {
                 throw new Error('Reg number code must match the selected programme');
             }
+            return true;
+        }),
+    body('phone').exists({ checkFalsy: true }).withMessage('Phone number is required for account login')
+        .bail().custom(value => {
+            if (!normalizePhone(value)) throw new Error('Enter a valid phone number with country code or local format');
             return true;
         }),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
@@ -40,20 +46,21 @@ router.post('/register', registerValidation, async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
     try {
-        const { email, full_name, password, phone, gender, hostel_preference, course } = req.body;
+        const { email, full_name, password, gender, hostel_preference, course } = req.body;
+        const phone = normalizePhone(req.body.phone);
         const reg_no = req.body.reg_no.trim().toUpperCase();
         const normalizedGender = gender === 'Female' ? 'Female' : 'Male';
         const normalizedHostel = hostel_preference || (normalizedGender === 'Male' ? 'Boys' : 'Girls');
         const hashedPassword = await bcrypt.hash(password, 10);
         const [result] = await pool.query(
             'INSERT INTO users (reg_no, email, phone, full_name, password_hash, campus, gender, hostel_preference, course) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [reg_no, email, phone || null, full_name, hashedPassword, 'Zetech', normalizedGender, normalizedHostel, course?.trim() || null]
+            [reg_no, email, phone, full_name, hashedPassword, 'Zetech', normalizedGender, normalizedHostel, course?.trim() || null]
         );
         const user = {
             id: result.insertId,
             reg_no,
             email,
-            phone: phone || null,
+            phone,
             full_name,
             role: 'student',
             campus: 'Zetech',
@@ -162,13 +169,11 @@ router.put('/profile/info', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'Please enter a valid email address' });
         }
 
-        // Validate phone format if provided
-        if (phone?.trim()) {
-            const digitsOnly = phone.trim().replace(/\D/g, '');
-            if (digitsOnly.length < 10 || digitsOnly.length > 15) {
-                return res.status(400).json({ error: 'Phone number must be 10–15 digits' });
-            }
+        if (req.user.role === 'student' && !phone?.trim()) {
+            return res.status(400).json({ error: 'Phone number is required for student login' });
         }
+        const normalizedPhone = phone?.trim() ? normalizePhone(phone) : null;
+        if (phone?.trim() && !normalizedPhone) return res.status(400).json({ error: 'Enter a valid phone number' });
 
         // Check email uniqueness (excluding current user)
         if (email?.trim()) {
@@ -177,14 +182,14 @@ router.put('/profile/info', authenticateToken, async (req, res) => {
         }
 
         // Check phone uniqueness (excluding current user)
-        if (phone?.trim()) {
-            const [existing] = await pool.query('SELECT id FROM users WHERE phone = ? AND id != ?', [phone.trim(), req.user.id]);
+        if (normalizedPhone) {
+            const [existing] = await pool.query('SELECT id FROM users WHERE phone = ? AND id != ?', [normalizedPhone, req.user.id]);
             if (existing.length) return res.status(400).json({ error: 'Phone number already used by another account' });
         }
 
         await pool.query(
             'UPDATE users SET full_name = ?, course = ?, email = COALESCE(NULLIF(?, \'\'), email), phone = COALESCE(NULLIF(?, \'\'), phone) WHERE id = ?',
-            [full_name.trim(), course?.trim() || null, email?.trim() || '', phone?.trim() || '', req.user.id]
+            [full_name.trim(), course?.trim() || null, email?.trim() || '', normalizedPhone || '', req.user.id]
         );
 
         const [users] = await pool.query(

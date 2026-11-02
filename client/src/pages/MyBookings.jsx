@@ -15,23 +15,21 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import BookingStatusChip from '../components/bookings/BookingStatusChip';
 import MpesaDialog from '../components/payments/MpesaDialog';
-import { formatDate, formatHostelName, formatRoomNumber } from '../utils/helpers';
+import { formatDate, formatHostelName, formatPaymentMethod, formatRoomNumber, isSuspended } from '../utils/helpers';
 import { useAuth } from '../context/AuthContext';
-import { SCHOOL_PAYBILL } from '../utils/constants';
+import { MIN_DEPOSIT } from '../utils/constants';
 import api from '../utils/api';
-import { formatPaymentMethod } from '../utils/helpers';
+import logoImg from '../d.jpg';
 
 
 export default function MyBookings() {
     const { user } = useAuth();
     const { bookings, loading: bLoading, fetchMyBookings } = useBookings();
-    const { payments, loading: pLoading, fetchMyPayments, initStkPush, queryStkStatus, submit: submitPayment } = usePayments();
+    const { payments, loading: pLoading, fetchMyPayments, initStkPush, queryStkStatus } = usePayments();
     const loading = bLoading || pLoading;
-    const [payOpen, setPayOpen] = useState(false);
     const [mpesaOpen, setMpesaOpen] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState(null);
-    const [payForm, setPayForm] = useState({ amount: '', payment_method: 'mpesa', mpesa_code: '' });
-    const [phone, setPhone] = useState('');
+    const [phone, setPhone] = useState(user?.phone || '');
     const [submitting, setSubmitting] = useState(false);
     const [polling, setPolling] = useState(false);
     const [receipt, setReceipt] = useState(null);
@@ -40,6 +38,7 @@ export default function MyBookings() {
 
     const fetchData = () => { fetchMyBookings(); fetchMyPayments(); };
 
+    useEffect(() => { setPhone(user?.phone || ''); }, [user?.phone]);
     useEffect(() => { return () => { if (pollRef.current) clearInterval(pollRef.current); }; }, []);
 
     const getPayment = (bookingId) => payments.find(p => p.booking_id === bookingId);
@@ -63,34 +62,65 @@ export default function MyBookings() {
         const document = printWindow.document;
         document.title = `Payment receipt ${receipt.id}`;
         const style = document.createElement('style');
-        style.textContent = 'body{font:16px Arial,sans-serif;max-width:680px;margin:40px auto;color:#222}h1{color:#1a237e}p{padding:10px 0;border-bottom:1px solid #ddd}';
+        style.textContent = `
+            *{box-sizing:border-box}body{font:15px Arial,sans-serif;max-width:720px;margin:32px auto;padding:0 20px;color:#1f2937}
+            .receipt{border:1px solid #dbe3f0;border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0f172a18}
+            header{background:#1a237e;color:#fff;padding:26px 30px;display:flex;align-items:center;gap:18px}
+            header img{width:62px;height:62px;object-fit:contain;background:#fff;border-radius:12px;padding:4px}
+            h1{font-size:22px;margin:0 0 6px}header p{border:0;margin:0;color:#e0e7ff;padding:0}
+            .details{padding:24px 30px;display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+            .details p{padding:12px 0;margin:0;border-bottom:1px solid #e5e7eb}
+            .policy{margin:0;padding:16px 30px;background:#f8fafc;color:#475569;font-size:13px}
+            footer{padding:16px 30px;color:#64748b;font-size:12px}
+            @media print{body{margin:0;padding:0}.receipt{box-shadow:none}}
+        `;
         document.head.append(style);
+        const receiptCard = document.createElement('main');
+        receiptCard.className = 'receipt';
+        const header = document.createElement('header');
+        const logo = document.createElement('img');
+        logo.src = new URL(logoImg, window.location.href).href;
+        logo.alt = 'Zetech University';
+        const title = document.createElement('div');
         const heading = document.createElement('h1');
-        heading.textContent = 'Zetech Hostel — Payment Receipt';
-        document.body.append(heading);
+        heading.textContent = 'Payment receipt';
+        const subheading = document.createElement('p');
+        subheading.textContent = 'Zetech University Hostel';
+        title.append(heading, subheading);
+        header.append(logo, title);
+        const details = document.createElement('section');
+        details.className = 'details';
         [
-            ['Receipt number', receipt.id],
+            ['Receipt no.', receipt.id],
+            ['Payment status', receipt.status],
             ['Student', receipt.full_name],
-            ['Registration number', receipt.reg_no],
-            ['Amount', `KES ${Number(receipt.amount).toLocaleString()}`],
+            ['Registration no.', receipt.reg_no],
+            ['Amount received', `KES ${Number(receipt.amount).toLocaleString()}`],
             ['Payment method', formatPaymentMethod(receipt.payment_method)],
-            ['M-Pesa code', receipt.mpesa_code || '—'],
-            ['Status', receipt.status],
-            ['Date', receipt.payment_date ? new Date(receipt.payment_date).toLocaleString() : '—'],
+            ['Safaricom receipt', receipt.mpesa_code || '—'],
+            ['Payment date', receipt.payment_date ? new Date(receipt.payment_date).toLocaleString() : '—'],
             ['Hostel / room', `${formatHostelName(receipt.hostel)} ${formatRoomNumber(receipt.room_number)}`],
-            ['Semester', receipt.semester],
+            ['Semester / period', receipt.semester || '—'],
         ].forEach(([label, value]) => {
             const row = document.createElement('p');
             row.textContent = `${label}: ${value ?? '—'}`;
-            document.body.append(row);
+            details.append(row);
         });
+        const policy = document.createElement('p');
+        policy.className = 'policy';
+        policy.textContent = 'This payment is credited toward hostel fees. Hostel payments are non-refundable.';
+        const footer = document.createElement('footer');
+        footer.textContent = 'Keep this receipt for your records. Payment status is verified through M-Pesa.';
+        receiptCard.append(header, details, policy, footer);
+        document.body.append(receiptCard);
         printWindow.focus();
         printWindow.print();
     };
 
     // M-Pesa STK Push flow
     const handleMpesaPay = async () => {
-        if (!phone.trim() || phone.length < 10) return toast.error('Enter a valid phone number');
+        if (submitting) return;
+        if (!phone.trim()) return toast.error('Enter the phone number registered to your account');
         setSubmitting(true);
         try {
             const stkRes = await initStkPush(phone, selectedBooking.id);
@@ -98,11 +128,7 @@ export default function MyBookings() {
             setMpesaOpen(false);
             setPhone('');
 
-            Swal.fire({
-                icon: 'info', title: 'Check Your Phone',
-                html: `Enter your <b>M-Pesa PIN</b> to complete payment of <b>KES ${Number(selectedBooking.price).toLocaleString()}</b>`,
-                confirmButtonColor: '#1a237e', allowOutsideClick: false,
-            });
+            toast(`Check your phone and enter your M-Pesa PIN to pay KES ${MIN_DEPOSIT.toLocaleString()}.`);
 
             // Poll using STK query to check with Safaricom directly
             setPolling(true);
@@ -131,23 +157,9 @@ export default function MyBookings() {
                 }
             }, 5000);
         } catch (err) {
-            Swal.fire({ icon: 'error', title: 'STK Push Failed', text: err.response?.data?.error || 'Could not initiate payment', confirmButtonColor: '#1a237e' });
+            setMpesaOpen(false);
+            toast.error(err.response?.data?.error || 'Could not initiate payment');
         } finally { setSubmitting(false); }
-    };
-
-    // Manual M-Pesa payment using the provider transaction code.
-    const handleManualPay = async () => {
-        if (!payForm.amount || Number(payForm.amount) < 12000) return toast.error('Minimum payment is KES 12,000 (deposit)');
-        if (!payForm.mpesa_code.trim()) return toast.error('Enter M-Pesa code');
-        setSubmitting(true);
-        try {
-            await submitPayment({ booking_id: selectedBooking.id, ...payForm });
-            setPayOpen(false);
-            setPayForm({ amount: '', payment_method: 'mpesa', mpesa_code: '' });
-            fetchData();
-            Swal.fire({ icon: 'success', title: 'Payment Submitted!', text: 'Your payment is pending admin confirmation.', confirmButtonColor: '#1a237e' });
-        } catch (err) { Swal.fire({ icon: 'error', title: 'Payment Failed', text: err.response?.data?.error || 'Something went wrong', confirmButtonColor: '#1a237e' }); }
-        finally { setSubmitting(false); }
     };
 
     const handleCancel = async (id) => {
@@ -205,7 +217,7 @@ export default function MyBookings() {
                                         <TableCell>{formatDate(b.created_at)}</TableCell>
                                         <TableCell><BookingStatusChip status={b.status} /></TableCell>
                                         <TableCell>
-                                            {b.suspended ? (
+                                            {isSuspended(b.suspended) ? (
                                                 <Chip label="🚫 Suspended" color="error" size="small" />
                                             ) : payment ? (
                                                 <Chip label={payment.status === 'confirmed' ? 'Paid' : 'Pending'}
@@ -215,15 +227,11 @@ export default function MyBookings() {
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {b.status === 'approved' && !payment && !b.suspended && (
+                                            {b.status === 'approved' && !payment && !isSuspended(b.suspended) && (
                                                 <Box sx={{ display: 'flex', gap: 0.5 }}>
                                                     <Button size="small" variant="contained" color="success"
                                                         onClick={() => { setSelectedBooking(b); setMpesaOpen(true); }}>
-                                                        M-Pesa
-                                                    </Button>
-                                                    <Button size="small" variant="outlined"
-                                                        onClick={() => { setSelectedBooking(b); setPayForm({ amount: b.price, payment_method: 'mpesa', mpesa_code: '' }); setPayOpen(true); }}>
-                                                        Paybill
+                                                        Pay KES {MIN_DEPOSIT.toLocaleString()} deposit
                                                     </Button>
                                                 </Box>
                                             )}
@@ -265,42 +273,35 @@ export default function MyBookings() {
             {/* M-Pesa STK Push Dialog */}
             <MpesaDialog open={mpesaOpen} onClose={() => setMpesaOpen(false)} booking={selectedBooking} phone={phone} setPhone={setPhone} onPay={handleMpesaPay} submitting={submitting} />
 
-            {/* Manual Payment Dialog */}
-            <Dialog open={payOpen} onClose={() => setPayOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Manual Payment — Room {formatRoomNumber(selectedBooking?.room_number)}</DialogTitle>
-                <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                    <Alert severity="info">
-                        Pay via M-Pesa: go to Lipa na M-Pesa → Paybill. Business number: <strong>{SCHOOL_PAYBILL}</strong>.
-                        Account number: <strong>{user?.reg_no || 'Your admission/registration number'}</strong>.
-                        Pay the amount below, then enter the M-Pesa confirmation code. Payment remains pending until staff verify it.
-                    </Alert>
-                    <TextField label="Amount (KES)" type="number" value={payForm.amount}
-                        onChange={e => setPayForm({ ...payForm, amount: e.target.value })} />
-                    <TextField label="M-Pesa Transaction Code" value={payForm.mpesa_code}
-                        onChange={e => setPayForm({ ...payForm, mpesa_code: e.target.value })} />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setPayOpen(false)}>Cancel</Button>
-                    <Button variant="contained" onClick={handleManualPay} disabled={submitting}>
-                        {submitting ? 'Submitting...' : 'Submit Payment'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
             <Dialog open={Boolean(receipt)} onClose={() => setReceipt(null)} maxWidth="sm" fullWidth>
-                <DialogTitle>Payment receipt</DialogTitle>
-                <DialogContent dividers>
-                    {receipt && <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-                        <Typography><strong>Receipt:</strong> {receipt.id}</Typography>
-                        <Typography><strong>Status:</strong> {receipt.status}</Typography>
-                        <Typography><strong>Student:</strong> {receipt.full_name}</Typography>
-                        <Typography><strong>Reg. no.:</strong> {receipt.reg_no}</Typography>
-                        <Typography><strong>Amount:</strong> KES {Number(receipt.amount).toLocaleString()}</Typography>
-                        <Typography><strong>Method:</strong> {formatPaymentMethod(receipt.payment_method)}</Typography>
-                        <Typography><strong>M-Pesa code:</strong> {receipt.mpesa_code || '—'}</Typography>
-                        <Typography><strong>Room:</strong> {formatHostelName(receipt.hostel)} {formatRoomNumber(receipt.room_number)}</Typography>
-                        <Typography><strong>Date:</strong> {receipt.payment_date ? new Date(receipt.payment_date).toLocaleString() : '—'}</Typography>
-                        <Typography><strong>Semester:</strong> {receipt.semester || '—'}</Typography>
-                    </Box>}
+                <DialogTitle sx={{ px: 0, pt: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, bgcolor: 'primary.main', color: 'white', p: 2.5 }}>
+                        <Box component="img" src={logoImg} alt="Zetech University" sx={{ width: 54, height: 54, objectFit: 'contain', borderRadius: 2, bgcolor: 'white', p: 0.5 }} />
+                        <Box>
+                            <Typography variant="h6" fontWeight={700}>Payment receipt</Typography>
+                            <Typography variant="body2">Zetech University Hostel</Typography>
+                        </Box>
+                    </Box>
+                </DialogTitle>
+                <DialogContent dividers sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+                    {receipt && [
+                        ['Receipt no.', receipt.id],
+                        ['Payment status', receipt.status],
+                        ['Student', receipt.full_name],
+                        ['Registration no.', receipt.reg_no],
+                        ['Amount received', `KES ${Number(receipt.amount).toLocaleString()}`],
+                        ['Method', formatPaymentMethod(receipt.payment_method)],
+                        ['Safaricom receipt', receipt.mpesa_code || '—'],
+                        ['Room', `${formatHostelName(receipt.hostel)} ${formatRoomNumber(receipt.room_number)}`],
+                        ['Date', receipt.payment_date ? new Date(receipt.payment_date).toLocaleString() : '—'],
+                        ['Semester / period', receipt.semester || '—'],
+                    ].map(([label, value]) => <Box key={label}>
+                        <Typography variant="caption" color="text.secondary">{label}</Typography>
+                        <Typography>{value}</Typography>
+                    </Box>)}
+                    <Alert severity="info" sx={{ gridColumn: '1 / -1', mt: 1 }}>
+                        This payment is credited toward hostel fees. Hostel payments are non-refundable.
+                    </Alert>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setReceipt(null)}>Close</Button>

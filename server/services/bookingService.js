@@ -4,6 +4,22 @@ const UserModel = require('../models/userModel');
 const { sendNotification, sendToRole } = require('./notificationService');
 const OperationsModel = require('../models/operationsModel');
 
+const isValidDate = (value) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+};
+
+const getTodayInKenya = () => new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+const getCurrentSemester = () => {
+    const month = Number(getTodayInKenya().slice(5, 7));
+    const year = getTodayInKenya().slice(0, 4);
+    const term = month <= 4 ? 'Jan-Apr' : month <= 8 ? 'May-Aug' : 'Sep-Dec';
+    return `${term} ${year}`;
+};
+
 const getActiveBooking = async (userId) => {
     const [bookings] = await BookingModel.getActiveBooking(userId);
     return bookings[0] || null;
@@ -30,6 +46,13 @@ const toggleBookings = async (open, userId) => {
 };
 
 const createBooking = async (userId, { room_id, bed_id, semester, arrival_date }) => {
+    if (arrival_date && !isValidDate(arrival_date)) {
+        return { error: 'Enter a real arrival date in YYYY-MM-DD format', status: 400 };
+    }
+    if (arrival_date && arrival_date < getTodayInKenya()) {
+        return { error: 'Arrival date cannot be in the past', status: 400 };
+    }
+
     // Check if booking is open
     const [statusRows] = await BookingModel.getBookingStatus();
     if (statusRows.length && statusRows[0].message === 'closed') {
@@ -55,7 +78,8 @@ const createBooking = async (userId, { room_id, bed_id, semester, arrival_date }
         if (!bed.length) return { error: 'Bed not available', status: 400 };
     }
 
-    await BookingModel.createBooking(userId, room_id, bed_id, semester, arrival_date);
+    const bookingSemester = periodAccess[0]?.active_semester || semester || getCurrentSemester();
+    await BookingModel.createBooking(userId, room_id, bed_id, bookingSemester, arrival_date);
 
     if (bed_id) {
         await RoomModel.updateBedStatus(bed_id, 'occupied');
