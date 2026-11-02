@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
 const operationsModel = require('../models/operationsModel');
 const logger = require('../utils/logger');
+const { normalizeRole } = require('../utils/roles');
 
-const staffRoles = ['admin', 'accounts', 'warden'];
 const mutationMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const auditedDetailFields = new Set([
     'status', 'role', 'suspended', 'room_id', 'bed_id', 'arrival_date', 'departure_date',
@@ -27,7 +27,7 @@ module.exports = (req, res, next) => {
     if (!token) return next();
 
     jwt.verify(token, process.env.JWT_SECRET, (error, user) => {
-        if (error || !staffRoles.includes(user?.role)) return next();
+        if (error || normalizeRole(user?.role) !== 'admin') return next();
 
         res.on('finish', () => {
             if (res.statusCode < 200 || res.statusCode >= 400) return;

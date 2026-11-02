@@ -24,7 +24,6 @@ const studentLinks = [
 ];
 const adminLinks = [
     { label: 'Admin Panel', path: '/admin' },
-    { label: 'Operations', path: '/operations' },
     { label: 'How it works', path: '/help' },
     { label: 'Profile', path: '/profile' },
 ];
@@ -53,9 +52,7 @@ export default function Layout({ children }) {
     };
 
     const handleLogout = () => { logout(); navigate('/login'); };
-    const links = user?.role === 'accounts'
-        ? adminLinks.filter(link => ['/operations', '/help', '/profile'].includes(link.path))
-        : ['admin', 'warden'].includes(user?.role) ? adminLinks : studentLinks;
+    const links = user?.role === 'admin' ? adminLinks : studentLinks;
     const navTo = (path) => { navigate(path); setDrawerOpen(false); };
 
     return (
@@ -67,7 +64,7 @@ export default function Layout({ children }) {
                             <MenuIcon />
                         </IconButton>
                     )}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }} onClick={() => navigate(['admin', 'accounts', 'warden'].includes(user?.role) ? '/admin' : '/dashboard')}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }} onClick={() => navigate(user?.role === 'admin' ? '/admin' : '/dashboard')}>
                         <img src={logoImg} alt="Zetech" style={{ height: 40, borderRadius: 6 }} />
                         <Typography variant="h6" sx={{ fontWeight: 700 }}>Zetech Hostel</Typography>
                     </Box>

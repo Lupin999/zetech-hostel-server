@@ -47,7 +47,7 @@ export function AuthProvider({ children, onLoginSuccess }) {
     const login = async (email, password, { adminOnly = false } = {}) => {
         const res = await authService.login(email, password);
         const nextUser = res.data.user;
-        if (adminOnly && !['admin', 'accounts', 'warden'].includes(nextUser?.role)) {
+        if (adminOnly && nextUser?.role !== 'admin') {
             throw new Error('This account does not have admin access.');
         }
         localStorage.setItem('token', res.data.token);

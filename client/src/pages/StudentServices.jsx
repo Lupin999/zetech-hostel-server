@@ -159,9 +159,9 @@ export default function StudentServices() {
                 {currentStay ? <Paper sx={{ p: 2, mb: 3 }}>
                     <Typography fontWeight={600}>{formatHostelName(currentStay.hostel)} · Room {formatRoomNumber(currentStay.room_number)}</Typography>
                     <Typography color="text.secondary">Campus: {currentStay.campus} · Period: {currentStay.semester}</Typography>
-                    <Alert severity="info" sx={{ mt: 2 }}>You can request checkout after staff check you in. A warden or admin must approve the request; approval completes your stay and releases the bed.</Alert>
+                    <Alert severity="info" sx={{ mt: 2 }}>You can request checkout after the admin checks you in. The admin must approve the request; approval completes your stay and releases the bed.</Alert>
                     {checkoutRequests.some((request) => request.booking_id === currentStay.id && request.status === 'pending')
-                        ? <Alert severity="info" sx={{ mt: 2 }}>Your checkout request is awaiting approval from the admin or warden.</Alert>
+                        ? <Alert severity="info" sx={{ mt: 2 }}>Your checkout request is awaiting admin approval.</Alert>
                         : <Paper component="form" onSubmit={submitCheckoutRequest} elevation={0} sx={{ mt: 2 }}>
                             <TextField fullWidth label="Reason (optional)" multiline minRows={2} value={checkoutReason} onChange={(event) => setCheckoutReason(event.target.value)} inputProps={{ maxLength: 1000 }} />
                             <Button type="submit" variant="contained" sx={{ mt: 2 }}>Submit checkout request</Button>

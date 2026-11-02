@@ -277,11 +277,11 @@ export default function Profile() {
                                 <Phone sx={{ color: '#fff' }} />
                             </Box>
                             <Box>
-                                <Typography variant="body2" fontWeight={600}>Hostel Warden</Typography>
+                                <Typography variant="body2" fontWeight={600}>Hostel Admin</Typography>
                                 <Typography variant="body2" color="text.secondary">0714231425</Typography>
                             </Box>
                         </Box>
-                        <Button variant="outlined" fullWidth href="tel:0714231425" startIcon={<Phone />}>Call Warden</Button>
+                        <Button variant="outlined" fullWidth href="tel:0714231425" startIcon={<Phone />}>Call Admin</Button>
                     </Paper>
                 </Grid>
             </Grid>

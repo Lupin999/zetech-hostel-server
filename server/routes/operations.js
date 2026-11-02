@@ -34,26 +34,26 @@ router.get('/students', authenticateToken, allowRoles('admin'), query('search').
 }, run((req) => operationsService.listStudents(req.query.search)));
 
 router.patch('/students/:id/role', authenticateToken, allowRoles('admin'),
-    param('id').custom(validId), body('role').isIn(['student', 'admin', 'accounts', 'warden']),
+    param('id').custom(validId), body('role').isIn(['student', 'admin']),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.setStudentRole(req.user, req.params.id, req.body.role)));
 
-router.get('/stays', authenticateToken, allowRoles('admin', 'warden'), run(() => operationsService.listStays()));
+router.get('/stays', authenticateToken, allowRoles('admin'), run(() => operationsService.listStays()));
 router.get('/my-stay', authenticateToken, run((req) => operationsService.getStudentCurrentStay(req.user.id)));
-router.get('/history', authenticateToken, allowRoles('admin', 'warden'),
+router.get('/history', authenticateToken, allowRoles('admin'),
     query('search').optional().isString(), (req, res, next) => {
         if (handleErrors(req, res)) return;
         next();
     }, run((req) => operationsService.listStayHistory(req.query.search || '')));
-router.put('/stays/:id/check-in', authenticateToken, allowRoles('admin', 'warden'), (req, res, next) => {
+router.put('/stays/:id/check-in', authenticateToken, allowRoles('admin'), (req, res, next) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     next();
 }, run((req) => operationsService.checkIn(req.user.id, req.params.id)));
-router.put('/stays/:id/check-out', authenticateToken, allowRoles('admin', 'warden'), (req, res, next) => {
+router.put('/stays/:id/check-out', authenticateToken, allowRoles('admin'), (req, res, next) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     next();
 }, run((req) => operationsService.checkOut(req.user.id, req.params.id)));
-router.put('/stays/:id/dates', authenticateToken, allowRoles('admin', 'warden'),
+router.put('/stays/:id/dates', authenticateToken, allowRoles('admin'),
     param('id').custom(validId), body('arrival_date').optional({ values: 'null' }).isISO8601({ strict: true }),
     body('departure_date').optional({ values: 'null' }).isISO8601({ strict: true }),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
@@ -64,7 +64,7 @@ router.post('/checkout-requests', authenticateToken,
     body('reason').optional().isString().isLength({ max: 1000 }),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.createCheckoutRequest(req.user.id, req.body.reason)));
-router.patch('/checkout-requests/:id/decision', authenticateToken, allowRoles('admin', 'warden'),
+router.patch('/checkout-requests/:id/decision', authenticateToken, allowRoles('admin'),
     param('id').custom(validId), body('decision').isIn(['approved', 'declined']),
     body('note').optional().isString().isLength({ max: 1000 }),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
@@ -94,7 +94,7 @@ router.post('/requests', authenticateToken,
     run((req) => operationsService.createRequest(req.user.id, {
         ...req.body, request_type: req.body.request_type || 'maintenance', priority: req.body.priority || 'normal',
     })));
-router.patch('/requests/:id', authenticateToken, allowRoles('admin', 'warden'),
+router.patch('/requests/:id', authenticateToken, allowRoles('admin'),
     param('id').custom(validId), body('status').isIn(['open', 'in_progress', 'resolved', 'closed']),
     body('resolution').optional().isString().isLength({ max: 5000 }),
     body('assigned_to').optional({ values: 'null' }).isInt({ min: 1 }),
@@ -108,13 +108,13 @@ router.post('/visitors', authenticateToken,
     body('purpose').trim().isLength({ min: 2, max: 255 }),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.createVisitor(req.user.id, req.body)));
-router.patch('/visitors/:id/status', authenticateToken, allowRoles('admin', 'warden'),
+router.patch('/visitors/:id/status', authenticateToken, allowRoles('admin'),
     param('id').custom(validId), body('status').isIn(['checked_in', 'checked_out', 'cancelled']),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.updateVisitor(req.user.id, req.params.id, req.body.status)));
 
-router.get('/inspections', authenticateToken, allowRoles('admin', 'warden'), run(() => operationsService.listInspections()));
-router.post('/inspections', authenticateToken, allowRoles('admin', 'warden'),
+router.get('/inspections', authenticateToken, allowRoles('admin'), run(() => operationsService.listInspections()));
+router.post('/inspections', authenticateToken, allowRoles('admin'),
     body('room_id').isInt({ min: 1 }),
     body('condition_status').isIn(['good', 'attention_required', 'uninhabitable']),
     body('cleanliness').isIn(['clean', 'needs_cleaning', 'poor']),
@@ -122,7 +122,7 @@ router.post('/inspections', authenticateToken, allowRoles('admin', 'warden'),
     body('notes').optional().isString().isLength({ max: 5000 }),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.createInspection(req.user.id, req.body)));
-router.patch('/rooms/:id/status', authenticateToken, allowRoles('admin', 'warden'),
+router.patch('/rooms/:id/status', authenticateToken, allowRoles('admin'),
     param('id').custom(validId), body('status').isIn(['available', 'full', 'maintenance']),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.updateRoomStatus(req.user.id, req.params.id, req.body.status)));
@@ -132,7 +132,7 @@ router.get('/payments/:id/receipt', authenticateToken, (req, res, next) => {
     next();
 }, run((req) => operationsService.getPaymentReceipt(req.params.id, req.user)));
 router.get('/balances', authenticateToken, run((req) => operationsService.getBalances(req.user)));
-router.get('/reports', authenticateToken, allowRoles('admin', 'accounts'),
+router.get('/reports', authenticateToken, allowRoles('admin'),
     query('from').optional().isISO8601({ strict: true }), query('to').optional().isISO8601({ strict: true }),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.getReports(req.query.from, req.query.to)));

@@ -12,13 +12,16 @@ test.afterEach(() => {
 test('only an administrator can change user roles', async () => {
     model.updateRole = () => assert.fail('role update must not run');
 
-    const result = await service.setStudentRole({ id: 10, role: 'accounts' }, 12, 'warden');
+    const result = await service.setStudentRole({ id: 10, role: 'student' }, 12, 'admin');
 
     assert.equal(result.status, 403);
     assert.match(result.error, /Only an admin/);
 });
 
-test('role changes record the target identity and both role values', async () => {
+test('role changes only allow student or admin and record the target identity', async () => {
+    const invalidRole = await service.setStudentRole({ id: 10, role: 'admin' }, 12, 'warden');
+    assert.equal(invalidRole.status, 400);
+
     let auditEntry;
     model.getUserRoleDetails = async () => [[{
         id: 12, full_name: 'Student Example', reg_no: 'CS-01-0001/2026', role: 'student',
@@ -26,7 +29,7 @@ test('role changes record the target identity and both role values', async () =>
     model.updateRole = async () => [{ affectedRows: 1 }];
     model.writeAuditLog = async (entry) => { auditEntry = entry; };
 
-    const result = await service.setStudentRole({ id: 10, role: 'admin' }, 12, 'warden');
+    const result = await service.setStudentRole({ id: 10, role: 'admin' }, 12, 'admin');
 
     assert.equal(result.message, 'User role updated');
     assert.equal(auditEntry.entityId, 12);
@@ -34,7 +37,7 @@ test('role changes record the target identity and both role values', async () =>
         target_name: 'Student Example',
         target_reg_no: 'CS-01-0001/2026',
         previous_role: 'student',
-        role: 'warden',
+        role: 'admin',
     });
 });
 
@@ -117,15 +120,15 @@ test('date reports reject impossible calendar dates', async () => {
     assert.match(result.error, /valid date range/);
 });
 
-test('wardens see only their own balances; finance staff see the ledger', async () => {
+test('admins see the balance ledger while students see only their own balance', async () => {
     const requestedScopes = [];
     model.getBalances = async userId => {
         requestedScopes.push(userId);
         return [[], []];
     };
 
-    await service.getBalances({ id: 14, role: 'warden' });
-    await service.getBalances({ id: 15, role: 'accounts' });
+    await service.getBalances({ id: 14, role: 'student' });
+    await service.getBalances({ id: 15, role: 'admin' });
 
     assert.deepEqual(requestedScopes, [14, null]);
 });

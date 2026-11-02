@@ -35,7 +35,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 });
 
-router.post('/', authenticateToken, requireRole('admin', 'warden'), roomValidation, async (req, res) => {
+router.post('/', authenticateToken, requireRole('admin'), roomValidation, async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
     try {
@@ -48,7 +48,7 @@ router.post('/', authenticateToken, requireRole('admin', 'warden'), roomValidati
     }
 });
 
-router.put('/:id', authenticateToken, requireRole('admin', 'warden'), roomUpdateValidation, async (req, res) => {
+router.put('/:id', authenticateToken, requireRole('admin'), roomUpdateValidation, async (req, res) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid room ID' });
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });

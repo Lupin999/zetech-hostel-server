@@ -24,7 +24,7 @@ router.get('/status', authenticateToken, async (req, res) => {
     } catch { res.json({ open: true }); }
 });
 
-router.put('/toggle', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
+router.put('/toggle', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
         const result = await bookingService.toggleBookings(req.body.open, req.user.id);
         res.json(result);
@@ -55,7 +55,7 @@ router.get('/my', authenticateToken, async (req, res) => {
     }
 });
 
-router.get('/all', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
+router.get('/all', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
         const bookings = await bookingService.getAllBookings();
         res.json(bookings);
@@ -65,7 +65,7 @@ router.get('/all', authenticateToken, requireRole('admin', 'warden'), async (req
     }
 });
 
-router.put('/:id/status', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
+router.put('/:id/status', authenticateToken, requireRole('admin'), async (req, res) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     try {
         const { status, reason } = req.body;
@@ -86,7 +86,7 @@ router.put('/:id/status', authenticateToken, requireRole('admin', 'warden'), asy
     }
 });
 
-router.put('/:id/suspend', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
+router.put('/:id/suspend', authenticateToken, requireRole('admin'), async (req, res) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     try {
         const { suspended, reason } = req.body;

@@ -25,7 +25,7 @@ const setupConnection = ({ role = 'student', admins = [{ id: 1 }, { id: 2 }], pa
             if (sql.includes('FROM users WHERE id = ? FOR UPDATE')) {
                 return [[{ id: 7, role, phone: '0712345678', password_hash: passwordHash }]];
             }
-            if (sql.includes("FROM users WHERE role = 'admin' FOR UPDATE")) return [admins];
+            if (sql.includes("FROM users WHERE role IN ('admin', 'accounts', 'warden') FOR UPDATE")) return [admins];
             if (sql.includes('SELECT bed_id FROM bookings')) return [[{ bed_id: 3 }]];
             if (sql.includes('SELECT id FROM bookings WHERE user_id = ? FOR UPDATE')) {
                 return [[{ id: 11 }, { id: 12 }]];

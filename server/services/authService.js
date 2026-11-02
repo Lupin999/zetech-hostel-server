@@ -6,6 +6,7 @@ const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
 const logger = require('../utils/logger');
 const { normalizePhone } = require('../utils/phone');
+const { normalizeRole, normalizeStoredRole } = require('../utils/roles');
 
 // OTP brute-force protection: max 3 wrong attempts per phone, locked 15 min
 const otpAttempts = new Map();
@@ -27,7 +28,7 @@ const getTransporter = () => {
 
 const formatUser = (u) => ({
     id: u.id, reg_no: u.reg_no, email: u.email, phone: u.phone,
-    full_name: u.full_name, role: u.role, campus: u.campus,
+    full_name: u.full_name, role: normalizeRole(u.role), campus: u.campus,
     gender: u.gender, hostel_preference: u.hostel_preference, course: u.course
 });
 
@@ -53,10 +54,11 @@ const loginUser = async (email, password) => {
     const [users] = await UserModel.findByEmail(email);
     if (!users.length) return { error: 'No account found with this email', field: 'email', status: 401 };
 
-    const user = users[0];
-    const valid = await bcrypt.compare(password, user.password_hash);
+    const foundUser = users[0];
+    const valid = await bcrypt.compare(password, foundUser.password_hash);
     if (!valid) return { error: 'Incorrect password', field: 'password', status: 401 };
 
+    const user = await normalizeStoredRole(foundUser);
     const token = createToken(user);
     return { token, user: formatUser(user) };
 };
@@ -80,8 +82,8 @@ const deleteAccount = async (userId, currentPassword) => {
             return { error: 'Current password is incorrect', status: 400 };
         }
 
-        if (user.role === 'admin') {
-            const [admins] = await connection.query("SELECT id FROM users WHERE role = 'admin' FOR UPDATE");
+        if (normalizeRole(user.role) === 'admin') {
+            const [admins] = await connection.query("SELECT id FROM users WHERE role IN ('admin', 'accounts', 'warden') FOR UPDATE");
             if (admins.length <= 1) {
                 await connection.rollback();
                 return { error: 'The last admin account cannot be deleted', status: 409 };
@@ -156,7 +158,7 @@ const sendOtp = async (phone) => {
     const [users] = await UserModel.findByPhone(normalizedPhone);
     if (!users.length) return { error: 'No account found with this phone number', field: 'phone', status: 404 };
 
-    const user = users[0];
+    const user = await normalizeStoredRole(users[0]);
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -226,7 +228,7 @@ const verifyOtp = async (phone, code) => {
     const [users] = await UserModel.findByPhone(normalizedPhone);
     if (!users.length) return { error: 'No account found with this phone number', status: 404 };
 
-    const user = users[0];
+    const user = await normalizeStoredRole(users[0]);
     const token = createToken(user);
     return { token, user: formatUser(user) };
 };
@@ -234,7 +236,7 @@ const verifyOtp = async (phone, code) => {
 const verifyToken = async (userId) => {
     const [users] = await UserModel.findById(userId);
     if (!users.length) return { error: 'User not found', status: 401 };
-    return { user: users[0] };
+    return { user: await normalizeStoredRole(users[0]) };
 };
 
 const updateProfile = async (userId, full_name, course, phone, email) => {

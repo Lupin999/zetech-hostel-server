@@ -48,7 +48,7 @@ export default function CreateAdmin() {
             <Card sx={{ width: '100%', maxWidth: 420, p: 2 }}>
                 <CardContent>
                     <Typography variant="h5" gutterBottom align="center" color="primary">Admin Setup</Typography>
-                    <Typography variant="body2" gutterBottom align="center" color="text.secondary" sx={{ mb: 3 }}>Create an admin account</Typography>
+                    <Typography variant="body2" gutterBottom align="center" color="text.secondary" sx={{ mb: 3 }}>Create an admin account. Student admission numbers and room assignments are not required.</Typography>
                     {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                     <form onSubmit={handleSubmit}>
                         <TextField label="Full Name" fullWidth sx={{ mb: 2 }} value={form.full_name} onChange={update('full_name')} />

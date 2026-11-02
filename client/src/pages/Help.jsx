@@ -7,16 +7,8 @@ const roleGuides = [
         actions: 'Register with your admission number, programme, email, and required phone number. Browse rooms, submit a booking, pay the KES 12,000 M-Pesa deposit after approval, view receipts and balances, and use notices, menu, maintenance, complaint, and checkout services.',
     },
     {
-        role: 'Warden',
-        actions: 'Review and approve or reject bookings, suspend or reactivate bookings, record check-ins and check-outs, review checkout requests, manage room inspections and status, and handle resident requests and complaints.',
-    },
-    {
-        role: 'Accounts',
-        actions: 'Review payment records, receipts, outstanding balances, and reports. M-Pesa status is confirmed by Safaricom; staff cannot verify a payment by accepting a typed transaction code.',
-    },
-    {
         role: 'Admin',
-        actions: 'Manage rooms and student roles, open or close bookings, schedule hostel periods, and access the operational tools, reports, audit history, and payment records.',
+        actions: 'Manage rooms and student accounts, approve bookings, handle payments and reports, check residents in or out, schedule hostel periods, manage requests and inspections, and review audit history.',
     },
 ];
 
@@ -27,7 +19,7 @@ export default function Help() {
         <Box sx={{ maxWidth: 900, mx: 'auto' }}>
             <Typography variant="h4" fontWeight={700} gutterBottom>How Zetech Hostel works</Typography>
             <Typography color="text.secondary" sx={{ mb: 3 }}>
-                A quick guide to student admission details, hostel bookings, payments, check-in, and staff roles.
+                A quick guide to student admission details, hostel bookings, payments, check-in, and the two account roles.
             </Typography>
 
             <Paper sx={{ p: { xs: 2, md: 3 }, mb: 2 }}>
@@ -35,10 +27,10 @@ export default function Help() {
                 <Box component="ol" sx={{ pl: 2.5, mb: 0 }}>
                     <li><Typography sx={{ mb: 1 }}>Create an account. Enter the registration number in the format <strong>BSE-01'0046/2024</strong>: programme code, group, student number, and admission year.</Typography></li>
                     <li><Typography sx={{ mb: 1 }}>Add a phone number you can access. It is required for account login by phone and for M-Pesa prompts. Phone login codes are currently sent to the email address on the account.</Typography></li>
-                    <li><Typography sx={{ mb: 1 }}>Choose an available room and a valid future arrival date. Your booking stays pending until a warden or admin reviews it.</Typography></li>
+                    <li><Typography sx={{ mb: 1 }}>Choose an available room and a valid future arrival date. Your booking stays pending until an admin reviews it.</Typography></li>
                     <li><Typography sx={{ mb: 1 }}>After approval, use the M-Pesa prompt to pay the KES 12,000 deposit. The room fee is shown separately; payment is credited toward hostel fees.</Typography></li>
-                    <li><Typography sx={{ mb: 1 }}>Wait for hostel staff to check you in. A payment alone does not check you into a room.</Typography></li>
-                    <li><Typography>After staff have checked you in, submit a checkout request from Student Services. A warden or admin must approve it before the stay is completed.</Typography></li>
+                    <li><Typography sx={{ mb: 1 }}>Wait for an admin to check you in. A payment alone does not check you into a room.</Typography></li>
+                    <li><Typography>After the admin checks you in, submit a checkout request from Student Services. The admin must approve it before the stay is completed.</Typography></li>
                 </Box>
             </Paper>
 

@@ -18,7 +18,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 });
 
-router.post('/', authenticateToken, requireRole('admin', 'warden'), [
+router.post('/', authenticateToken, requireRole('admin'), [
     body('title').trim().notEmpty().withMessage('Title is required'),
     body('message').trim().notEmpty().withMessage('Message is required'),
 ], async (req, res) => {
@@ -34,7 +34,7 @@ router.post('/', authenticateToken, requireRole('admin', 'warden'), [
     }
 });
 
-router.delete('/:id', authenticateToken, requireRole('admin', 'warden'), async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole('admin'), async (req, res) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid notice ID' });
     try {
         const result = await noticeService.deleteNotice(req.params.id);

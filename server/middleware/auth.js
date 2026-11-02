@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 const logger = require('../utils/logger');
+const { normalizeStoredRole } = require('../utils/roles');
 
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -11,7 +12,8 @@ function authenticateToken(req, res, next) {
         try {
             const [users] = await pool.query('SELECT id, role FROM users WHERE id = ?', [user.id]);
             if (!users.length) return res.status(401).json({ error: 'Account no longer exists' });
-            req.user = { ...user, role: users[0].role };
+            const currentUser = await normalizeStoredRole({ ...user, role: users[0].role });
+            req.user = currentUser;
             next();
         } catch (error) {
             logger.error('AUTHENTICATE TOKEN ERROR', {
@@ -24,7 +26,7 @@ function authenticateToken(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-    if (!['admin', 'accounts', 'warden'].includes(req.user.role)) return res.status(403).json({ error: 'Admin access required' });
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
     next();
 }
 

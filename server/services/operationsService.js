@@ -1,11 +1,12 @@
 const model = require('../models/operationsModel');
 const RoomModel = require('../models/roomModel');
 const { sendNotification } = require('./notificationService');
+const { normalizeRole } = require('../utils/roles');
 
-const staffRoles = ['admin', 'accounts', 'warden'];
-const residentialRoles = ['admin', 'warden'];
-const financeRoles = ['admin', 'accounts'];
-const userRoles = ['student', ...staffRoles];
+const staffRoles = ['admin'];
+const residentialRoles = ['admin'];
+const financeRoles = ['admin'];
+const userRoles = ['student', 'admin'];
 const requestStatuses = ['open', 'in_progress', 'resolved', 'closed'];
 const visitorStatuses = ['checked_in', 'checked_out', 'cancelled'];
 
@@ -35,7 +36,7 @@ const getDateRange = (from, to) => {
 
 const listStudents = async (search = '') => {
     const [rows] = await model.listStudents(search.trim().slice(0, 100));
-    return rows;
+    return rows.map(user => ({ ...user, role: normalizeRole(user.role) }));
 };
 
 const setStudentRole = async (actor, userId, role) => {
@@ -100,14 +101,12 @@ const createCheckoutRequest = async (userId, reason) => {
         reason: reason?.trim() || null,
     });
     if (result.error) return result;
-    await sendNotification(userId, `Your checkout request for ${stay.hostel} Hostel Room ${stay.room_number} is awaiting admin or warden approval.`, 'booking');
+    await sendNotification(userId, `Your checkout request for ${stay.hostel} Hostel Room ${stay.room_number} is awaiting admin approval.`, 'booking');
     return { id: result.id, message: 'Checkout request submitted for staff review' };
 };
 
 const listCheckoutRequests = async (user) => {
-    const [rows] = await model.listCheckoutRequests(
-        ['admin', 'warden'].includes(user.role) ? null : user.id
-    );
+    const [rows] = await model.listCheckoutRequests(user.role === 'admin' ? null : user.id);
     return rows;
 };
 

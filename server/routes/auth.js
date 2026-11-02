@@ -9,6 +9,7 @@ const { authenticateToken } = require('../middleware/auth');
 const logger = require('../utils/logger');
 const programmes = require('../data/programmes');
 const { normalizePhone } = require('../utils/phone');
+const { normalizeStoredRole } = require('../utils/roles');
 
 const registerValidation = [
     body('email').isEmail().withMessage('Valid email is required'),
@@ -94,10 +95,11 @@ router.post('/login', async (req, res) => {
         const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
         if (!users.length) return res.status(401).json({ error: 'No account found with this email', field: 'email' });
 
-        const user = users[0];
-        const validPassword = await bcrypt.compare(password, user.password_hash);
+        const foundUser = users[0];
+        const validPassword = await bcrypt.compare(password, foundUser.password_hash);
         if (!validPassword) return res.status(401).json({ error: 'Incorrect password', field: 'password' });
 
+        const user = await normalizeStoredRole(foundUser);
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
         res.json({ token, user: { id: user.id, reg_no: user.reg_no, email: user.email, phone: user.phone, full_name: user.full_name, role: user.role, campus: user.campus, gender: user.gender, hostel_preference: user.hostel_preference, course: user.course } });
     } catch (error) {
@@ -151,7 +153,7 @@ router.get('/verify', authenticateToken, async (req, res) => {
             [req.user.id]
         );
         if (!users.length) return res.status(401).json({ error: 'User not found' });
-        res.json({ user: users[0] });
+        res.json({ user: await normalizeStoredRole(users[0]) });
     } catch (error) {
         logger.error('VERIFY ERROR', { message: error.message });
         res.status(500).json({ error: 'Server error' });

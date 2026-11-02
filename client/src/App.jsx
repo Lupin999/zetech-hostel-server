@@ -16,11 +16,10 @@ import Profile from './pages/Profile';
 import MyBookings from './pages/MyBookings';
 import Notices from './pages/Notices';
 import Menu from './pages/Menu';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminPanel from './pages/AdminPanel';
 import CreateAdmin from './pages/CreateAdmin';
 import ForgotPassword from './pages/ForgotPassword';
 import StudentServices from './pages/StudentServices';
-import OperationsDashboard from './pages/OperationsDashboard';
 import Help from './pages/Help';
 
 function Loading() {
@@ -41,17 +40,15 @@ function StudentRoute({ children }) {
     return <Layout><PageTransition>{children}</PageTransition></Layout>;
 }
 
-function AdminRoute({ children, allowAccounts = false }) {
+function AdminRoute({ children }) {
     const { user, loading } = useAuth();
     if (loading) return <Loading />;
     if (!user) return <Navigate to="/login" />;
-    if (user.role === 'accounts' && !allowAccounts) return <Navigate to="/operations" replace />;
-    return ['admin', 'accounts', 'warden'].includes(user.role) ? <Layout><PageTransition>{children}</PageTransition></Layout> : <Navigate to="/dashboard" />;
+    return user.role === 'admin' ? <Layout><PageTransition>{children}</PageTransition></Layout> : <Navigate to="/dashboard" />;
 }
 
 function getUserHomePath(user) {
-    if (user?.role === 'accounts') return '/operations';
-    return ['admin', 'accounts', 'warden'].includes(user?.role) ? '/admin' : '/dashboard';
+    return user?.role === 'admin' ? '/admin' : '/dashboard';
 }
 
 function AppRoutes({ showSplash, onSplashDone }) {
@@ -69,15 +66,15 @@ function AppRoutes({ showSplash, onSplashDone }) {
                     <Route path="/create-admin" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><CreateAdmin /></PageTransition>} />
                     <Route path="/forgot-password" element={user ? <Navigate to={getUserHomePath(user)} replace /> : <PageTransition><ForgotPassword /></PageTransition>} />
                     <Route path="/dashboard" element={<StudentRoute><Dashboard /></StudentRoute>} />
-                    <Route path="/profile" element={user?.role === 'student' ? <StudentRoute><Profile /></StudentRoute> : <AdminRoute allowAccounts><Profile /></AdminRoute>} />
-                    <Route path="/help" element={['admin', 'accounts', 'warden'].includes(user?.role) ? <AdminRoute allowAccounts><Help /></AdminRoute> : <StudentRoute><Help /></StudentRoute>} />
+                    <Route path="/profile" element={user?.role === 'admin' ? <AdminRoute><Profile /></AdminRoute> : <StudentRoute><Profile /></StudentRoute>} />
+                    <Route path="/help" element={user?.role === 'admin' ? <AdminRoute><Help /></AdminRoute> : <StudentRoute><Help /></StudentRoute>} />
 
                     <Route path="/my-bookings" element={<StudentRoute><MyBookings /></StudentRoute>} />
                     <Route path="/notices" element={<StudentRoute><Notices /></StudentRoute>} />
                     <Route path="/menu" element={<StudentRoute><Menu /></StudentRoute>} />
                     <Route path="/services" element={<StudentRoute><StudentServices /></StudentRoute>} />
-                    <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-                    <Route path="/operations" element={<AdminRoute allowAccounts><OperationsDashboard /></AdminRoute>} />
+                    <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+                    <Route path="/operations" element={<AdminRoute><Navigate to="/admin?section=operations" replace /></AdminRoute>} />
                     <Route path="*" element={<Navigate to={user ? getUserHomePath(user) : "/login"} replace />} />
                 </Routes>
             </AnimatePresence>

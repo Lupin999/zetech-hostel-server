@@ -10,11 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { formatHostelName, formatPaymentMethod, formatRoomNumber } from '../utils/helpers';
 
-const tabsByRole = {
-    admin: ['Stays', 'History', 'Checkout Requests', 'Periods', 'Students', 'Requests', 'Inspections', 'Payments', 'Reports', 'Audit'],
-    accounts: ['Payments', 'Reports'],
-    warden: ['Stays', 'History', 'Checkout Requests', 'Requests', 'Inspections'],
-};
+const adminTabs = ['Stays', 'History', 'Checkout Requests', 'Periods', 'Users', 'Requests', 'Inspections', 'Payments', 'Reports', 'Audit'];
 
 const addMonthsToDate = (dateValue, months) => {
     if (!dateValue) return undefined;
@@ -132,7 +128,7 @@ const auditCsvRows = (rows) => rows.map((row) => {
 
 export default function OperationsDashboard() {
     const { user } = useAuth();
-    const tabs = tabsByRole[user?.role] || [];
+    const tabs = user?.role === 'admin' ? adminTabs : [];
     const [tab, setTab] = useState(0);
     const [rows, setRows] = useState([]);
     const [financePayments, setFinancePayments] = useState([]);
@@ -166,7 +162,7 @@ export default function OperationsDashboard() {
                 setRooms(roomRes.data);
                 if (!periodForm.campus && roomRes.data.length) setPeriodForm((current) => ({ ...current, campus: roomRes.data[0].campus }));
             }
-            if (activeTab === 'Students') setRows((await api.get('/operations/students', { params: { search } })).data);
+            if (activeTab === 'Users') setRows((await api.get('/operations/students', { params: { search } })).data);
             if (activeTab === 'Requests') setRows((await api.get('/operations/requests')).data);
             if (activeTab === 'Inspections') {
                 const [inspectionRes, roomRes] = await Promise.all([api.get('/operations/inspections'), api.get('/rooms')]);
@@ -188,7 +184,7 @@ export default function OperationsDashboard() {
             : activeTab === 'History' ? api.get('/operations/history', { params: { search } })
                 : activeTab === 'Checkout Requests' ? api.get('/operations/checkout-requests')
                     : activeTab === 'Periods' ? Promise.all([api.get('/operations/periods'), api.get('/rooms')])
-            : activeTab === 'Students' ? api.get('/operations/students', { params: { search } })
+            : activeTab === 'Users' ? api.get('/operations/students', { params: { search } })
                 : activeTab === 'Requests' ? api.get('/operations/requests')
                         : activeTab === 'Inspections' ? Promise.all([api.get('/operations/inspections'), api.get('/rooms')])
                         : activeTab === 'Payments' ? api.get('/payments/all')
@@ -362,12 +358,12 @@ export default function OperationsDashboard() {
                     {!rows.length && <TableRow><TableCell colSpan={8} align="center">No hostel periods scheduled</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
-        {activeTab === 'Students' && <>
-            <TextField label="Search students" size="small" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') load(); }} sx={{ mb: 2, minWidth: 280 }} />
+        {activeTab === 'Users' && <>
+            <TextField label="Search users" size="small" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') load(); }} sx={{ mb: 2, minWidth: 280 }} />
             <Button onClick={load} sx={{ ml: 1, mt: 0.5 }}>Search</Button>
             <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Student', 'Registration', 'Email', 'Phone', 'Current room', 'Role'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.email}</TableCell><TableCell>{row.phone || '—'}</TableCell><TableCell>{row.current_room || '—'}</TableCell><TableCell><TextField select size="small" value={row.role} onChange={e => updateRole(row, e.target.value)} disabled={row.id === user.id} sx={{ minWidth: 120 }}>{['student', 'admin', 'accounts', 'warden'].map(role => <MenuItem key={role} value={role}>{role}</MenuItem>)}</TextField></TableCell></TableRow>)}
-                    {!rows.length && <TableRow><TableCell colSpan={6} align="center">No students found</TableCell></TableRow>}</TableBody></Table></TableContainer>
+                <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.full_name}</TableCell><TableCell>{row.reg_no}</TableCell><TableCell>{row.email}</TableCell><TableCell>{row.phone || '—'}</TableCell><TableCell>{row.current_room || '—'}</TableCell><TableCell><TextField select size="small" value={row.role} onChange={e => updateRole(row, e.target.value)} disabled={row.id === user.id} sx={{ minWidth: 120 }}>{['student', 'admin'].map(role => <MenuItem key={role} value={role}>{role === 'admin' ? 'Admin' : 'Student'}</MenuItem>)}</TextField></TableCell></TableRow>)}
+                    {!rows.length && <TableRow><TableCell colSpan={6} align="center">No users found</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
         {activeTab === 'Requests' && <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Created', 'Student', 'Room', 'Type / priority', 'Request', 'Status', 'Update'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>

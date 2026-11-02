@@ -4,7 +4,7 @@ const UserModel = require('../models/userModel');
 
 const getNotices = async (userId) => {
     const [user] = await UserModel.findById(userId);
-    const isAdmin = ['admin', 'accounts', 'warden'].includes(user[0]?.role);
+    const isAdmin = user[0]?.role === 'admin';
 
     if (isAdmin) {
         const [notices] = await NoticeModel.getAllNotices();

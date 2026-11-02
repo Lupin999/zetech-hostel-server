@@ -95,7 +95,7 @@ const createBooking = async (userId, { room_id, bed_id, semester, arrival_date }
     const rHostel = room[0]?.hostel || '';
     const bedStr = bedInfo ? ` Bed ${bedInfo.bed_number} (${bedInfo.position})` : '';
 
-    await sendToRole(['admin', 'warden'], `New booking request: ${sName} (${sReg}) wants Room ${rNum}${bedStr} at ${rHostel} Hostel. Please review.`, 'booking');
+    await sendToRole(['admin'], `New booking request: ${sName} (${sReg}) wants Room ${rNum}${bedStr} at ${rHostel} Hostel. Please review.`, 'booking');
     await sendNotification(userId, `Your booking request for Room ${rNum}${bedStr} at ${rHostel} Hostel has been submitted and is pending admin approval.`, 'booking');
 
     return { message: 'Booking request submitted' };

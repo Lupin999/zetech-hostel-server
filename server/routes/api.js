@@ -144,13 +144,13 @@ router.get('/docs', (req, res) => {
                     response: '[array of booking objects]'
                 },
                 'Review all bookings': {
-                    description: 'Get all bookings (admin or warden)',
-                    auth: 'required (admin or warden)',
+                    description: 'Get all bookings (admin only)',
+                    auth: 'required (admin)',
                     response: '[array of booking objects]'
                 },
                 'Approve or reject a booking': {
-                    description: 'Approve or reject booking (admin or warden)',
-                    auth: 'required (admin or warden)',
+                    description: 'Approve or reject booking (admin only)',
+                    auth: 'required (admin)',
                     body: { status: 'approved|rejected', reason: 'required on rejection (5-500 characters)' },
                     response: { message: 'Booking approved/rejected', reason: 'rejection reason or null' }
                 },
@@ -191,8 +191,8 @@ router.get('/docs', (req, res) => {
                     response: '[array of payment objects]'
                 },
                 'Review payment records': {
-                    description: 'Get all payment records (admin or accounts)',
-                    auth: 'required (admin or accounts)',
+                    description: 'Get all payment records (admin only)',
+                    auth: 'required (admin)',
                     response: '[array of payment objects]'
                 }
             },
@@ -239,15 +239,15 @@ router.get('/docs', (req, res) => {
                 basePath: '/api/operations',
                 endpoints: [
                     'View and manage student roles (admin)',
-                    'Review current stays and check residents in or out (admin/warden)',
-                    'Update resident stay dates and view stay history (admin/warden)',
-                    'Submit or review checkout requests (student scoped; admin/warden review)',
+                    'Review current stays and check residents in or out (admin)',
+                    'Update resident stay dates and view stay history (admin)',
+                    'Submit or review checkout requests (student scoped; admin review)',
                     'Create hostel periods (admin)',
                     'Submit maintenance requests or complaints (student scoped)',
-                    'Review resident requests (admin/warden)',
-                    'Record room inspections and update room status (admin/warden)',
+                    'Review resident requests (admin)',
+                    'Record room inspections and update room status (admin)',
                     'View a payment receipt or personal balance (owner or authorized staff)',
-                    'View finance reports (admin/accounts)',
+                    'View finance reports (admin)',
                     'Review audit history (admin)',
                 ]
             }

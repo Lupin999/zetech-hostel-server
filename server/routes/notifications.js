@@ -14,8 +14,8 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 });
 
-// Send a direct message to a user — admin/warden/accounts only
-router.post('/send', authenticateToken, requireRole('admin', 'accounts', 'warden'), async (req, res) => {
+// Send a direct message to a user — admin only
+router.post('/send', authenticateToken, requireRole('admin'), async (req, res) => {
     const { user_id, message } = req.body;
     if (!user_id || !message?.trim()) return res.status(400).json({ error: 'User ID and message required' });
     try {

@@ -62,7 +62,7 @@ const queryStkStatus = async (checkoutRequestId, userId) => {
                     `Your M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${info[0].room_number} has been confirmed. Welcome to Zetech Hostel!`,
                     'payment'
                 );
-                await sendToRole(['accounts', 'admin'],
+                await sendToRole(['admin'],
                     `${info[0].full_name} (${info[0].reg_no}) M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${info[0].room_number} confirmed.`,
                     'payment'
                 );
@@ -97,7 +97,7 @@ const handleCallback = async (body) => {
                 `Your M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${p.room_number} has been confirmed. Receipt: ${receipt}. Welcome to Zetech Hostel!`,
                 'payment'
             );
-            await sendToRole(['accounts', 'admin'],
+            await sendToRole(['admin'],
                 `${p.full_name} (${p.reg_no}) M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${p.room_number} confirmed. Receipt: ${receipt}`,
                 'payment'
             );

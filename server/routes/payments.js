@@ -89,7 +89,7 @@ router.get('/my', authenticateToken, async (req, res) => {
     }
 });
 
-router.get('/all', authenticateToken, requireRole('admin', 'accounts'), async (req, res) => {
+router.get('/all', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
         const payments = await paymentService.getAllPayments();
         res.json(payments);

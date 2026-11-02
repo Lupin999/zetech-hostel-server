@@ -29,7 +29,7 @@ export default function Dashboard() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (user && ['admin', 'accounts', 'warden'].includes(user.role)) navigate('/admin', { replace: true });
+        if (user?.role === 'admin') navigate('/admin', { replace: true });
     }, [user, navigate]);
 
     const { rooms } = useRooms();

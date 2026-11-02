@@ -58,7 +58,7 @@ export default function Login() {
         try {
             const user = await login(email, password);
             toast.success('Login successful!');
-            navigate(['admin', 'accounts', 'warden'].includes(user?.role) ? '/admin' : '/dashboard', { replace: true });
+            navigate(user?.role === 'admin' ? '/admin' : '/dashboard', { replace: true });
         } catch (err) {
             const data = err.response?.data;
             setError(data?.error || err.message || 'Login failed');
@@ -93,7 +93,7 @@ export default function Login() {
             const fullPhone = countryCode + phoneNumber.replace(/^0+/, '');
             const user = await verifyOtp(fullPhone, otp);
             toast.success('Login successful!');
-            navigate(['admin', 'accounts', 'warden'].includes(user?.role) ? '/admin' : '/dashboard', { replace: true });
+            navigate(user?.role === 'admin' ? '/admin' : '/dashboard', { replace: true });
         } catch (err) {
             const data = err.response?.data;
             setError(data?.error || 'Verification failed');
