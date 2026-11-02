@@ -4,6 +4,7 @@ import {
     MenuItem, Paper, Tab, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
@@ -23,6 +24,10 @@ export default function StudentServices() {
     const [checkoutReason, setCheckoutReason] = useState('');
     const [requestForm, setRequestForm] = useState(emptyRequest);
     const [receipt, setReceipt] = useState(null);
+    const clearanceMarker = 'Fees cleared; room inspected and clean (confirmed by admin).';
+    const approvedClearance = checkoutRequests.find((request) =>
+        request.status === 'approved' && request.decision_note?.startsWith(clearanceMarker)
+    );
 
     const refresh = async () => {
         try {
@@ -105,9 +110,9 @@ export default function StudentServices() {
             <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
                 <Tab label="Requests" disabled={!currentStay} />
                 <Tab label="Payments" />
-                <Tab label="Checkout" disabled={!currentStay} />
+                <Tab label="Checkout" disabled={!currentStay && !checkoutRequests.length} />
             </Tabs>
-            {!currentStay && stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>
+            {!currentStay && !approvedClearance && stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>
                 An active checked-in room is required for maintenance requests and checkout. Payments remain available.
             </Alert>}
             {!currentStay && !stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>Checking your current room assignment…</Alert>}
@@ -154,9 +159,42 @@ export default function StudentServices() {
                 </Paper>
             </>}
 
-            {tab === 2 && currentStay && <>
+            {tab === 2 && (currentStay || checkoutRequests.length > 0) && <>
+                {approvedClearance && <Paper
+                    sx={{
+                        p: { xs: 2, sm: 3 }, mb: 3, border: '2px solid',
+                        borderColor: 'success.main', bgcolor: 'success.50',
+                    }}
+                >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                        <CheckCircleRoundedIcon color="success" sx={{ fontSize: 42 }} />
+                        <Box>
+                            <Typography variant="h5" fontWeight={700} color="success.dark">Departure clearance approved</Typography>
+                            <Typography color="text.secondary">Show this screen to the gate staff before leaving.</Typography>
+                        </Box>
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
+                        {[
+                            ['Student', approvedClearance.full_name],
+                            ['Registration number', approvedClearance.reg_no],
+                            ['Room', `${formatHostelName(approvedClearance.hostel)} ${formatRoomNumber(approvedClearance.room_number)}${approvedClearance.bed_number ? ` · Bed ${approvedClearance.bed_number}` : ''}`],
+                            ['Campus', approvedClearance.campus],
+                            ['Fees', 'Cleared by admin'],
+                            ['Room condition', 'Inspected and confirmed clean'],
+                            ['Approved', approvedClearance.reviewed_at ? new Date(approvedClearance.reviewed_at).toLocaleString() : 'Approved'],
+                        ].map(([label, value]) => <Box key={label}>
+                            <Typography variant="caption" color="text.secondary">{label}</Typography>
+                            <Typography fontWeight={600}>{value || '—'}</Typography>
+                        </Box>)}
+                    </Box>
+                </Paper>}
+                {!currentStay && !approvedClearance && checkoutRequests.some((request) => request.status === 'approved') &&
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        This checkout was approved before the gate-clearance confirmation was added. Please contact the admin for clearance.
+                    </Alert>}
+                {currentStay && <>
                 <Typography variant="h6" gutterBottom>Request checkout</Typography>
-                {currentStay ? <Paper sx={{ p: 2, mb: 3 }}>
+                <Paper sx={{ p: 2, mb: 3 }}>
                     <Typography fontWeight={600}>{formatHostelName(currentStay.hostel)} · Room {formatRoomNumber(currentStay.room_number)}</Typography>
                     <Typography color="text.secondary">Campus: {currentStay.campus} · Period: {currentStay.semester}</Typography>
                     <Alert severity="info" sx={{ mt: 2 }}>You can request checkout after the admin checks you in. The admin must approve the request; approval completes your stay and releases the bed.</Alert>
@@ -166,7 +204,8 @@ export default function StudentServices() {
                             <TextField fullWidth label="Reason (optional)" multiline minRows={2} value={checkoutReason} onChange={(event) => setCheckoutReason(event.target.value)} inputProps={{ maxLength: 1000 }} />
                             <Button type="submit" variant="contained" sx={{ mt: 2 }}>Submit checkout request</Button>
                         </Paper>}
-                </Paper> : <Alert severity="info" sx={{ mb: 3 }}>You need to be checked in before you can request checkout.</Alert>}
+                </Paper>
+                </>}
                 <Typography variant="h6" gutterBottom>Checkout request history</Typography>
                 <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Requested', 'Room', 'Reason', 'Status', 'Staff update'].map((value) => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
                     <TableBody>{checkoutRequests.map((row) => <TableRow key={row.id}><TableCell>{new Date(row.requested_at).toLocaleString()}</TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)}</TableCell><TableCell>{row.reason || '—'}</TableCell><TableCell><Chip size="small" label={row.status} color={row.status === 'pending' ? 'warning' : row.status === 'approved' ? 'success' : 'default'} /></TableCell><TableCell>{row.decision_note || (row.reviewer_name ? `Reviewed by ${row.reviewer_name}` : 'Awaiting review')}</TableCell></TableRow>)}

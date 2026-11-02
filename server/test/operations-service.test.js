@@ -62,6 +62,53 @@ test('successful check-in is recorded in the audit log', async () => {
     assert.equal(auditEntry.entityId, 20);
 });
 
+test('temporary check-in bypass is audited and keeps payment outstanding', async () => {
+    let allowUnpaid;
+    let auditEntry;
+    model.checkIn = async (_bookingId, override) => {
+        allowUnpaid = override;
+        return [{ affectedRows: 1 }];
+    };
+    model.writeAuditLog = async entry => { auditEntry = entry; };
+
+    const result = await service.checkIn(5, 20, 'Student showed an M-Pesa confirmation message');
+
+    assert.equal(result.message, 'Resident checked in');
+    assert.equal(allowUnpaid, true);
+    assert.equal(auditEntry.action, 'stay.checked_in_with_payment_override');
+    assert.deepEqual(auditEntry.details, {
+        payment_override: true,
+        access_type: 'temporary',
+        reason: 'Student showed an M-Pesa confirmation message',
+        payment_remains_due: true,
+    });
+});
+
+test('Mercy check-in is separately audited and leaves the balance due', async () => {
+    let auditEntry;
+    model.checkIn = async () => [{ affectedRows: 1 }];
+    model.writeAuditLog = async entry => { auditEntry = entry; };
+
+    const result = await service.checkIn(5, 20, 'Approved by admin for urgent move-in', 'mercy');
+
+    assert.equal(result.message, 'Resident checked in');
+    assert.equal(auditEntry.action, 'stay.checked_in_with_mercy');
+    assert.deepEqual(auditEntry.details, {
+        payment_override: true,
+        access_type: 'mercy',
+        reason: 'Approved by admin for urgent move-in',
+        payment_remains_due: true,
+    });
+});
+
+test('temporary check-in requires a payment-override reason', async () => {
+    model.checkIn = () => assert.fail('invalid temporary access reason must not be used');
+
+    const result = await service.checkIn(5, 20, '   ');
+
+    assert.equal(result.status, 400);
+});
+
 test('admin can delete an inspection and the deletion is audited', async () => {
     let auditEntry;
     model.deleteInspection = async () => [{ affectedRows: 1 }];
@@ -177,6 +224,36 @@ test('checkout requests require an active checked-in stay', async () => {
 
     assert.equal(result.status, 409);
     assert.match(result.error, /checked in/);
+});
+
+test('checkout approval requires admin confirmation of fees and room condition', async () => {
+    model.decideCheckoutRequest = () => assert.fail('checkout must not be approved without clearance confirmation');
+
+    const result = await service.decideCheckoutRequest({ id: 8, role: 'admin' }, 12, 'approved', '', false);
+
+    assert.equal(result.status, 400);
+    assert.match(result.error, /fees are cleared and the room is clean/);
+});
+
+test('approved checkout records clearance confirmation for the student gate pass', async () => {
+    let decision;
+    model.decideCheckoutRequest = async value => {
+        decision = value;
+        return { bookingId: 31, userId: 7 };
+    };
+    const notifications = require('../services/notificationService');
+    const originalSendNotification = notifications.sendNotification;
+    notifications.sendNotification = async () => {};
+    model.writeAuditLog = async () => {};
+
+    try {
+        const result = await service.decideCheckoutRequest({ id: 8, role: 'admin' }, 12, 'approved', '', true);
+
+        assert.equal(result.message, 'Checkout request approved');
+        assert.equal(decision.note, 'Fees cleared; room inspected and clean (confirmed by admin).');
+    } finally {
+        notifications.sendNotification = originalSendNotification;
+    }
 });
 
 test('students without a checked-in stay receive an empty current-stay result', async () => {

@@ -194,6 +194,12 @@ router.get('/docs', (req, res) => {
                     description: 'Get all payment records (admin only)',
                     auth: 'required (admin)',
                     response: '[array of payment objects]'
+                },
+                'Record an officially verified M-Pesa payment': {
+                    description: 'Record a payment only after an admin verifies the receipt, payer, and amount in the official M-Pesa account',
+                    auth: 'required (admin)',
+                    body: { booking_id: 'number', amount: 'positive number not exceeding the remaining balance', mpesa_code: 'verified M-Pesa receipt code', verified: true },
+                    response: { message: 'Verified M-Pesa payment recorded', paymentId: 'number' }
                 }
             },
             notices: {
@@ -240,6 +246,7 @@ router.get('/docs', (req, res) => {
                 endpoints: [
                     'View and manage student roles (admin)',
                     'Review current stays and check residents in or out (admin)',
+                    'Allow an admin-audited temporary check-in when payment is not yet confirmed; the balance remains due (admin)',
                     'Update resident stay dates and view stay history (admin)',
                     'Submit or review checkout requests (student scoped; admin review)',
                     'Create hostel periods (admin)',

@@ -49,6 +49,16 @@ router.put('/stays/:id/check-in', authenticateToken, allowRoles('admin'), (req, 
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     next();
 }, run((req) => operationsService.checkIn(req.user.id, req.params.id)));
+router.put('/stays/:id/temporary-access', authenticateToken, allowRoles('admin'),
+    param('id').custom(validId),
+    body('reason').trim().isLength({ min: 5, max: 500 })
+        .withMessage('Provide a reason between 5 and 500 characters for temporary access'),
+    body('access_type').optional().isIn(['temporary', 'mercy'])
+        .withMessage('Access type must be temporary or mercy'),
+    (req, res, next) => { if (handleErrors(req, res)) return; next(); },
+    run((req) => operationsService.checkIn(
+        req.user.id, req.params.id, req.body.reason, req.body.access_type || 'temporary'
+    )));
 router.put('/stays/:id/check-out', authenticateToken, allowRoles('admin'), (req, res, next) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });
     next();
@@ -67,8 +77,13 @@ router.post('/checkout-requests', authenticateToken,
 router.patch('/checkout-requests/:id/decision', authenticateToken, allowRoles('admin'),
     param('id').custom(validId), body('decision').isIn(['approved', 'declined']),
     body('note').optional().isString().isLength({ max: 1000 }),
+    body('clearance_confirmed').optional().isBoolean()
+        .custom((value, { req }) => req.body.decision !== 'approved' || value === true)
+        .withMessage('Confirm that fees are cleared and the room is clean before approving checkout'),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
-    run((req) => operationsService.decideCheckoutRequest(req.user, req.params.id, req.body.decision, req.body.note)));
+    run((req) => operationsService.decideCheckoutRequest(
+        req.user, req.params.id, req.body.decision, req.body.note, req.body.clearance_confirmed
+    )));
 
 router.get('/periods', authenticateToken, allowRoles('admin'), run(() => operationsService.listPeriods()));
 router.post('/periods', authenticateToken, allowRoles('admin'),

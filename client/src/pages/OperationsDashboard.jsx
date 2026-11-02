@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent,
+    Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent,
+    FormControlLabel,
     DialogTitle, MenuItem, Paper, Tab, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, Tabs, TextField, Typography,
 } from '@mui/material';
@@ -133,6 +134,13 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
     const [tab, setTab] = useState(() => Math.max(0, adminTabs.indexOf(initialTab)));
     const [rows, setRows] = useState([]);
     const [financePayments, setFinancePayments] = useState([]);
+    const [paymentBookings, setPaymentBookings] = useState([]);
+    const [paymentBalances, setPaymentBalances] = useState([]);
+    const [verifiedPaymentDialog, setVerifiedPaymentDialog] = useState(false);
+    const [verifiedPaymentForm, setVerifiedPaymentForm] = useState({
+        booking_id: '', amount: '', mpesa_code: '', verified: false,
+    });
+    const [verifiedPaymentSaving, setVerifiedPaymentSaving] = useState(false);
     const [rooms, setRooms] = useState([]);
     const [search, setSearch] = useState('');
     const [report, setReport] = useState(null);
@@ -153,10 +161,48 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
     });
     const activeTab = hideNavigation ? initialTab : tabs[tab];
     const reportRows = useMemo(() => report?.payment_rows || [], [report]);
+    const paymentableBookings = useMemo(() => {
+        const balances = new Map(paymentBalances.map((balance) => [Number(balance.booking_id), balance]));
+        return paymentBookings.filter((booking) => booking.status === 'approved' && !booking.checked_out_at)
+            .map((booking) => ({ ...booking, balance: balances.get(Number(booking.id)) }))
+            .filter((booking) => Number(booking.balance?.balance) > 0);
+    }, [paymentBookings, paymentBalances]);
+    const balancesByBookingId = useMemo(
+        () => new Map(paymentBalances.map((balance) => [Number(balance.booking_id), balance])),
+        [paymentBalances]
+    );
+
+    const openVerifiedPaymentDialog = (bookingId = '', amount = '') => {
+        setVerifiedPaymentForm({
+            booking_id: bookingId ? String(bookingId) : '',
+            amount: amount ? String(amount) : '',
+            mpesa_code: '',
+            verified: false,
+        });
+        setVerifiedPaymentDialog(true);
+    };
+
+    const loadPayments = async () => {
+        const [paymentsRes, bookingsRes, balancesRes] = await Promise.all([
+            api.get('/payments/all'), api.get('/bookings/all'), api.get('/operations/balances'),
+        ]);
+        setFinancePayments(paymentsRes.data);
+        setPaymentBookings(bookingsRes.data);
+        setPaymentBalances(balancesRes.data);
+    };
+
+    const loadStays = async () => {
+        const [staysRes, balancesRes] = await Promise.all([
+            api.get('/operations/stays'), api.get('/operations/balances'),
+        ]);
+        setRows(staysRes.data);
+        setPaymentBookings(staysRes.data.map((stay) => ({ ...stay, status: 'approved' })));
+        setPaymentBalances(balancesRes.data);
+    };
 
     const load = async () => {
         try {
-            if (activeTab === 'Stays') setRows((await api.get('/operations/stays')).data);
+            if (activeTab === 'Stays') await loadStays();
             if (activeTab === 'History') setRows((await api.get('/operations/history', { params: { search } })).data);
             if (activeTab === 'Checkout Requests') setRows((await api.get('/operations/checkout-requests')).data);
             if (activeTab === 'Periods') {
@@ -172,7 +218,7 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
                 setRows(inspectionRes.data);
                 setRooms(roomRes.data);
             }
-            if (activeTab === 'Payments') setFinancePayments((await api.get('/payments/all')).data);
+            if (activeTab === 'Payments') await loadPayments();
             if (activeTab === 'Audit') {
                 setRows((await api.get('/operations/audit')).data);
                 setAuditUpdatedAt(new Date());
@@ -183,23 +229,33 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
     useEffect(() => {
         if (!activeTab || activeTab === 'Reports') return undefined;
         let active = true;
-        const request = activeTab === 'Stays' ? api.get('/operations/stays')
+        const request = activeTab === 'Stays' ? Promise.all([
+            api.get('/operations/stays'), api.get('/operations/balances'),
+        ])
             : activeTab === 'History' ? api.get('/operations/history', { params: { search } })
                 : activeTab === 'Checkout Requests' ? api.get('/operations/checkout-requests')
                     : activeTab === 'Periods' ? Promise.all([api.get('/operations/periods'), api.get('/rooms')])
             : activeTab === 'Users' ? api.get('/operations/students', { params: { search } })
                 : activeTab === 'Requests' ? api.get('/operations/requests')
                         : activeTab === 'Inspections' ? Promise.all([api.get('/operations/inspections'), api.get('/rooms')])
-                        : activeTab === 'Payments' ? api.get('/payments/all')
+                        : activeTab === 'Payments' ? Promise.all([
+                            api.get('/payments/all'), api.get('/bookings/all'), api.get('/operations/balances'),
+                        ])
                             : api.get('/operations/audit');
         request.then(response => {
             if (!active) return;
-            if (activeTab === 'Periods') {
+            if (activeTab === 'Stays') {
+                setRows(response[0].data);
+                setPaymentBookings(response[0].data.map((stay) => ({ ...stay, status: 'approved' })));
+                setPaymentBalances(response[1].data);
+            } else if (activeTab === 'Periods') {
                 setRows(response[0].data);
                 setRooms(response[1].data);
                 setPeriodForm((current) => current.campus ? current : { ...current, campus: response[1].data[0]?.campus || '' });
             } else if (activeTab === 'Payments') {
-                setFinancePayments(response.data);
+                setFinancePayments(response[0].data);
+                setPaymentBookings(response[1].data);
+                setPaymentBalances(response[2].data);
             } else if (activeTab === 'Inspections') {
                 setRows(response[0].data);
                 setRooms(response[1].data);
@@ -310,14 +366,58 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
     };
 
     const decideCheckout = async (row, decision) => {
-        if (decision === 'approved' && !window.confirm(`Approve checkout for ${row.full_name} from ${formatHostelName(row.hostel)}, Room ${formatRoomNumber(row.room_number)}? Their stay will be completed and the bed released.`)) return;
+        if (decision === 'approved' && !window.confirm(`Confirm that ${row.full_name} has no outstanding fees and the room is clean, then approve departure clearance for ${formatHostelName(row.hostel)}, Room ${formatRoomNumber(row.room_number)}? Their stay will be completed and the bed released.`)) return;
         const note = decision === 'declined' ? window.prompt('Reason for declining (optional):') : '';
         if (note === null) return;
         try {
-            await api.patch(`/operations/checkout-requests/${row.id}/decision`, { decision, note });
+            await api.patch(`/operations/checkout-requests/${row.id}/decision`, {
+                decision, note, clearance_confirmed: decision === 'approved',
+            });
             await load();
             toast.success(`Checkout request ${decision}`);
         } catch (error) { toast.error(error.response?.data?.error || 'Could not decide checkout request'); }
+    };
+
+    const allowPaymentExceptionCheckIn = async (row, accessType) => {
+        const isMercy = accessType === 'mercy';
+        const reason = window.prompt(
+            `Payment is not fully confirmed for ${row.full_name}. Enter the reason for ${isMercy ? 'granting Mercy access' : 'temporary access'} (5–500 characters):`
+        );
+        if (reason === null) return;
+        if (reason.trim().length < 5 || reason.trim().length > 500) {
+            toast.error('Enter a reason between 5 and 500 characters');
+            return;
+        }
+        if (!window.confirm(
+            `${isMercy ? 'Grant Mercy access' : 'Grant temporary access'} to ${row.full_name}? This checks the student in but does NOT mark any payment as received; the balance remains due.`
+        )) return;
+        try {
+            await api.put(`/operations/stays/${row.id}/temporary-access`, {
+                reason: reason.trim(), access_type: accessType,
+            });
+            await load();
+            toast.success(`${isMercy ? 'Mercy' : 'Temporary'} access recorded; payment remains due`);
+        } catch (error) { toast.error(error.response?.data?.error || 'Could not allow access'); }
+    };
+
+    const recordVerifiedPayment = async (event) => {
+        event.preventDefault();
+        if (!verifiedPaymentForm.verified) {
+            toast.error('Confirm that you verified the payment in the official M-Pesa account');
+            return;
+        }
+        setVerifiedPaymentSaving(true);
+        try {
+            await api.post('/payments/admin/verified', verifiedPaymentForm);
+            setVerifiedPaymentDialog(false);
+            setVerifiedPaymentForm({ booking_id: '', amount: '', mpesa_code: '', verified: false });
+            await load();
+            toast.success('Verified payment recorded');
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Could not record verified payment');
+        } finally {
+            setVerifiedPaymentSaving(false);
+        }
     };
 
     const createHostelPeriod = async (event) => {
@@ -341,7 +441,11 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
         </>}
 
         {activeTab === 'Stays' && <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Resident', 'Room / bed', 'Arrival', 'Departure', 'Payment', 'Stay status', 'Action'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-            <TableBody>{rows.map(row => <TableRow key={row.id}><TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)} {row.bed_number && String(row.bed_number).trim() !== '0' ? `· Bed ${row.bed_number}` : ''}</TableCell><TableCell>{row.arrival_date ? new Date(row.arrival_date).toLocaleDateString() : '—'}</TableCell><TableCell>{row.departure_date ? new Date(row.departure_date).toLocaleDateString() : '—'}</TableCell><TableCell>{Number(row.confirmed_payments) ? <Chip size="small" color="success" label="Confirmed" /> : <Chip size="small" color="warning" label="Unpaid" />}</TableCell><TableCell>{row.checked_out_at ? 'Checked out' : row.checked_in_at ? `In since ${new Date(row.checked_in_at).toLocaleString()}` : 'Not checked in'}</TableCell><TableCell>{!row.checked_out_at && <Button size="small" onClick={() => setDateDialog({ id: row.id, arrival_date: row.arrival_date?.slice(0, 10) || '', departure_date: row.departure_date?.slice(0, 10) || '' })}>Dates</Button>}{!row.checked_in_at && !row.checked_out_at && <Button size="small" disabled={!Number(row.confirmed_payments)} onClick={() => changeStayStatus(row.id, 'check-in')}>Check in</Button>}{row.checked_in_at && !row.checked_out_at && <Button size="small" color="warning" onClick={() => changeStayStatus(row.id, 'check-out')}>Check out</Button>}</TableCell></TableRow>)}
+            <TableBody>{rows.map(row => {
+                const balance = balancesByBookingId.get(Number(row.id));
+                const outstanding = Number(balance?.balance || 0);
+                return <TableRow key={row.id}><TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)} {row.bed_number && String(row.bed_number).trim() !== '0' ? `· Bed ${row.bed_number}` : ''}</TableCell><TableCell>{row.arrival_date ? new Date(row.arrival_date).toLocaleDateString() : '—'}</TableCell><TableCell>{row.departure_date ? new Date(row.departure_date).toLocaleDateString() : '—'}</TableCell><TableCell>{outstanding > 0 ? <Chip size="small" color="warning" label={`Due KES ${outstanding.toLocaleString()}`} /> : <Chip size="small" color="success" label="Cleared" />}</TableCell><TableCell>{row.checked_out_at ? 'Checked out' : row.checked_in_at ? `In since ${new Date(row.checked_in_at).toLocaleString()}` : 'Not checked in'}</TableCell><TableCell>{!row.checked_out_at && <Button size="small" onClick={() => setDateDialog({ id: row.id, arrival_date: row.arrival_date?.slice(0, 10) || '', departure_date: row.departure_date?.slice(0, 10) || '' })}>Dates</Button>}{outstanding > 0 && <Button size="small" onClick={() => openVerifiedPaymentDialog(row.id, outstanding)}>Record verified payment</Button>}{!row.checked_in_at && !row.checked_out_at && <>{outstanding > 0 && <Button size="small" color="primary" onClick={() => allowPaymentExceptionCheckIn(row, 'mercy')}>Grant Mercy</Button>}{!Number(row.confirmed_payments) && <Button size="small" color="warning" onClick={() => allowPaymentExceptionCheckIn(row, 'temporary')}>Temporary access</Button>}<Button size="small" disabled={!Number(row.confirmed_payments)} onClick={() => changeStayStatus(row.id, 'check-in')}>Check in</Button></>}{row.checked_in_at && !row.checked_out_at && <Button size="small" color="warning" onClick={() => changeStayStatus(row.id, 'check-out')}>Check out</Button>}</TableCell></TableRow>;
+            })}
                 {!rows.length && <TableRow><TableCell colSpan={7} align="center">No approved stays</TableCell></TableRow>}</TableBody></Table></TableContainer>}
 
         {activeTab === 'History' && <>
@@ -398,11 +502,67 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
         </>}
 
         {activeTab === 'Payments' && <>
-            <Alert severity="info" sx={{ mb: 2 }}>Safaricom confirms M-Pesa payments automatically. Staff can review payment records but cannot mark a student-entered code as paid.</Alert>
+            <Alert severity="info" sx={{ mb: 2 }}>
+                For a payment that did not sync automatically, record it only after matching the receipt, amount, and payer in the official M-Pesa account. A student screenshot or message alone is not proof.
+            </Alert>
+            <Button variant="contained" sx={{ mb: 2 }} onClick={() => openVerifiedPaymentDialog()}>Record verified M-Pesa payment</Button>
             <TableContainer component={Paper} sx={{ mb: 3 }}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Registration', 'Room', 'Method', 'Safaricom receipt', 'Amount', 'Status'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
                 <TableBody>{financePayments.map(payment => <TableRow key={payment.id}><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.full_name}</TableCell><TableCell>{payment.reg_no}</TableCell><TableCell>{formatHostelName(payment.hostel)} {formatRoomNumber(payment.room_number)}</TableCell><TableCell>{formatPaymentMethod(payment.payment_method)}</TableCell><TableCell>{payment.status === 'confirmed' ? payment.mpesa_code || '—' : 'Awaiting M-Pesa verification'}</TableCell><TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell><TableCell>{payment.status}</TableCell></TableRow>)}
                     {!financePayments.length && <TableRow><TableCell colSpan={8} align="center">No payments found</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
+
+        <Dialog open={verifiedPaymentDialog} onClose={() => !verifiedPaymentSaving && setVerifiedPaymentDialog(false)} maxWidth="sm" fullWidth>
+            <DialogTitle>Record verified M-Pesa payment</DialogTitle>
+            <Box component="form" onSubmit={recordVerifiedPayment}>
+                <DialogContent dividers>
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        Verify the transaction directly in the official M-Pesa account. Do not rely on a screenshot or message supplied by the student.
+                    </Alert>
+                    <TextField
+                        select fullWidth required label="Approved booking" margin="normal"
+                        value={verifiedPaymentForm.booking_id}
+                        onChange={(event) => {
+                            const booking = paymentableBookings.find((item) => String(item.id) === event.target.value);
+                            setVerifiedPaymentForm({
+                                ...verifiedPaymentForm,
+                                booking_id: event.target.value,
+                                amount: booking ? String(booking.balance.balance) : '',
+                            });
+                        }}
+                    >
+                        {paymentableBookings.map((booking) => (
+                            <MenuItem key={booking.id} value={booking.id}>
+                                {booking.full_name} ({booking.reg_no}) · {formatHostelName(booking.hostel)} {formatRoomNumber(booking.room_number)} · Balance KES {Number(booking.balance.balance).toLocaleString()}
+                            </MenuItem>
+                        ))}
+                    </TextField>
+                    {!paymentableBookings.length && <Alert severity="info" sx={{ mt: 1 }}>There are no approved bookings with an outstanding balance.</Alert>}
+                    <TextField
+                        fullWidth required type="number" label="Verified amount (KES)" margin="normal"
+                        value={verifiedPaymentForm.amount} inputProps={{ min: 0.01, step: 0.01 }}
+                        onChange={(event) => setVerifiedPaymentForm({ ...verifiedPaymentForm, amount: event.target.value })}
+                    />
+                    <TextField
+                        fullWidth required label="M-Pesa receipt code" margin="normal"
+                        value={verifiedPaymentForm.mpesa_code} inputProps={{ minLength: 6, maxLength: 20 }}
+                        onChange={(event) => setVerifiedPaymentForm({ ...verifiedPaymentForm, mpesa_code: event.target.value.toUpperCase() })}
+                    />
+                    <FormControlLabel
+                        control={<Checkbox
+                            checked={verifiedPaymentForm.verified}
+                            onChange={(event) => setVerifiedPaymentForm({ ...verifiedPaymentForm, verified: event.target.checked })}
+                        />}
+                        label="I verified this receipt, payer, and amount in the official M-Pesa account."
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setVerifiedPaymentDialog(false)} disabled={verifiedPaymentSaving}>Cancel</Button>
+                    <Button type="submit" variant="contained" disabled={verifiedPaymentSaving || !paymentableBookings.length}>
+                        Record payment
+                    </Button>
+                </DialogActions>
+            </Box>
+        </Dialog>
 
         {activeTab === 'Reports' && <>
             <Paper component="form" onSubmit={runReport} sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', p: 2, mb: 2 }}>

@@ -1,8 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const paymentService = require('../services/paymentService');
 const logger = require('../utils/logger');
+
+router.post('/admin/verified', authenticateToken, requireRole('admin'),
+    body('booking_id').isInt({ min: 1 }),
+    body('amount').isDecimal({ decimal_digits: '0,2' }).custom(value => Number(value) > 0),
+    body('mpesa_code').isString().trim().matches(/^[A-Za-z0-9]{6,20}$/),
+    body('verified').custom(value => value === true || value === 'true'),
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg || 'Invalid payment details' });
+        try {
+            const result = await paymentService.recordAdminVerifiedPayment(req.user, {
+                bookingId: req.body.booking_id,
+                amount: req.body.amount,
+                mpesaCode: req.body.mpesa_code,
+                verified: req.body.verified === true || req.body.verified === 'true',
+            });
+            if (result.error) return res.status(result.status || 400).json({ error: result.error });
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('ADMIN VERIFIED PAYMENT ERROR', { message: error.message });
+            res.status(500).json({ error: 'Could not record the verified payment' });
+        }
+    });
 
 router.post('/stk-push', authenticateToken, async (req, res) => {
     try {

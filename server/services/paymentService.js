@@ -1,9 +1,35 @@
 const PaymentModel = require('../models/paymentModel');
 const { stkPush, stkQuery } = require('../utils/mpesa');
-const { sendNotification, sendToRole } = require('./notificationService');
+const notificationService = require('./notificationService');
 const { normalizeMpesaPhone } = require('../utils/phone');
 
 const DEPOSIT_AMOUNT = 12000;
+
+const recordAdminVerifiedPayment = async (actor, { bookingId, amount, mpesaCode, verified }) => {
+    if (actor.role !== 'admin') return { error: 'Only an admin can record a verified payment', status: 403 };
+    if (verified !== true) return { error: 'Confirm that the transaction was verified in the official M-Pesa account', status: 400 };
+    if (!Number.isSafeInteger(Number(bookingId)) || Number(bookingId) < 1) {
+        return { error: 'Select a valid booking', status: 400 };
+    }
+    const paymentAmount = Number(amount);
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0 || !/^\d{1,8}(\.\d{1,2})?$/.test(String(amount))) {
+        return { error: 'Enter a valid payment amount', status: 400 };
+    }
+    const receipt = String(mpesaCode || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{6,20}$/.test(receipt)) {
+        return { error: 'Enter a valid M-Pesa receipt code (6–20 letters or numbers)', status: 400 };
+    }
+
+    const result = await PaymentModel.recordAdminVerifiedPayment({
+        bookingId: Number(bookingId),
+        amount: paymentAmount,
+        mpesaCode: receipt,
+        adminId: actor.id,
+    });
+    if (result.error) return result;
+
+    return { message: 'Verified M-Pesa payment recorded', paymentId: result.id };
+};
 
 const initiateStkPush = async (userId, phone, bookingId) => {
     const [booking] = await PaymentModel.getApprovedBookingForPayment(bookingId, userId);
@@ -58,11 +84,11 @@ const queryStkStatus = async (checkoutRequestId, userId) => {
             const p = payment[0];
             const [info] = await PaymentModel.getBookingInfoForNotification(p.booking_id);
             if (info.length) {
-                await sendNotification(p.user_id,
+                await notificationService.sendNotification(p.user_id,
                     `Your M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${info[0].room_number} has been confirmed. Welcome to Zetech Hostel!`,
                     'payment'
                 );
-                await sendToRole(['admin'],
+                await notificationService.sendToRole(['admin'],
                     `${info[0].full_name} (${info[0].reg_no}) M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${info[0].room_number} confirmed.`,
                     'payment'
                 );
@@ -93,11 +119,11 @@ const handleCallback = async (body) => {
         const [payment] = await PaymentModel.findPaymentWithFullDetails(receipt);
         if (payment.length) {
             const p = payment[0];
-            await sendNotification(p.user_id,
+            await notificationService.sendNotification(p.user_id,
                 `Your M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${p.room_number} has been confirmed. Receipt: ${receipt}. Welcome to Zetech Hostel!`,
                 'payment'
             );
-            await sendToRole(['admin'],
+            await notificationService.sendToRole(['admin'],
                 `${p.full_name} (${p.reg_no}) M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${p.room_number} confirmed. Receipt: ${receipt}`,
                 'payment'
             );
@@ -117,4 +143,7 @@ const getAllPayments = async () => {
     return payments;
 };
 
-module.exports = { initiateStkPush, queryStkStatus, handleCallback, getMyPayments, getAllPayments, DEPOSIT_AMOUNT };
+module.exports = {
+    initiateStkPush, queryStkStatus, handleCallback, getMyPayments, getAllPayments,
+    recordAdminVerifiedPayment, DEPOSIT_AMOUNT,
+};

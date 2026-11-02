@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS payments (
     mpesa_code VARCHAR(100) NULL,
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('pending', 'confirmed') DEFAULT 'pending',
-    FOREIGN KEY (booking_id) REFERENCES bookings(id)
+    FOREIGN KEY (booking_id) REFERENCES bookings(id),
+    UNIQUE KEY unique_mpesa_receipt (mpesa_code)
 );
 
 CREATE TABLE IF NOT EXISTS notifications (

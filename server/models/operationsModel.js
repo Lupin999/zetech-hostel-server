@@ -39,10 +39,13 @@ const listStayHistory = (search = '') => pool.query(
     [search, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
 );
 
-const checkIn = (bookingId) => pool.query(
-    `UPDATE bookings SET checked_in_at = CURRENT_TIMESTAMP
-     WHERE id = ? AND status = 'approved' AND checked_in_at IS NULL AND checked_out_at IS NULL
-       AND EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = bookings.id AND p.status = 'confirmed')`,
+const checkIn = (bookingId, allowUnpaid = false) => pool.query(
+    allowUnpaid
+        ? `UPDATE bookings SET checked_in_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND status = 'approved' AND checked_in_at IS NULL AND checked_out_at IS NULL`
+        : `UPDATE bookings SET checked_in_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND status = 'approved' AND checked_in_at IS NULL AND checked_out_at IS NULL
+             AND EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = bookings.id AND p.status = 'confirmed')`,
     [bookingId]
 );
 
@@ -102,7 +105,7 @@ const createCheckoutRequest = async ({ bookingId, userId, reason }) => {
 };
 
 const listCheckoutRequests = (userId) => pool.query(
-    `SELECT c.*, b.semester, b.arrival_date, b.checked_in_at,
+    `SELECT c.*, b.semester, b.arrival_date, b.checked_in_at, b.checked_out_at,
         u.full_name, u.reg_no, r.room_number, r.hostel, r.campus, bd.bed_number,
         reviewer.full_name AS reviewer_name
      FROM checkout_requests c

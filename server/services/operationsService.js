@@ -1,6 +1,6 @@
 const model = require('../models/operationsModel');
 const RoomModel = require('../models/roomModel');
-const { sendNotification } = require('./notificationService');
+const notificationService = require('./notificationService');
 const { normalizeRole } = require('../utils/roles');
 
 const staffRoles = ['admin'];
@@ -75,10 +75,32 @@ const listStayHistory = async (search = '') => {
     return rows;
 };
 
-const checkIn = async (actorId, bookingId) => {
-    const [result] = await model.checkIn(bookingId);
-    if (!result.affectedRows) return { error: 'Check-in requires an approved booking, confirmed payment, and no existing stay', status: 409 };
-    await audit(actorId, 'stay.checked_in', 'booking', bookingId);
+const checkIn = async (actorId, bookingId, paymentOverrideReason = null, accessType = 'temporary') => {
+    const reason = paymentOverrideReason?.trim() || null;
+    if (paymentOverrideReason !== null && (!reason || reason.length < 5 || reason.length > 500)) {
+        return { error: 'Provide a reason between 5 and 500 characters for temporary access', status: 400 };
+    }
+    if (!['temporary', 'mercy'].includes(accessType)) {
+        return { error: 'Access type must be temporary or mercy', status: 400 };
+    }
+    const [result] = await model.checkIn(bookingId, Boolean(reason));
+    if (!result.affectedRows) {
+        return {
+            error: reason
+                ? 'Temporary access requires an approved booking that is not already checked in or checked out'
+                : 'Check-in requires an approved booking, confirmed payment, and no existing stay',
+            status: 409,
+        };
+    }
+    await audit(
+        actorId,
+        reason
+            ? accessType === 'mercy' ? 'stay.checked_in_with_mercy' : 'stay.checked_in_with_payment_override'
+            : 'stay.checked_in',
+        'booking',
+        bookingId,
+        reason ? { payment_override: true, access_type: accessType, reason, payment_remains_due: true } : undefined
+    );
     return { message: 'Resident checked in' };
 };
 
@@ -101,7 +123,7 @@ const createCheckoutRequest = async (userId, reason) => {
         reason: reason?.trim() || null,
     });
     if (result.error) return result;
-    await sendNotification(userId, `Your checkout request for ${stay.hostel} Hostel Room ${stay.room_number} is awaiting admin approval.`, 'booking');
+    await notificationService.sendNotification(userId, `Your checkout request for ${stay.hostel} Hostel Room ${stay.room_number} is awaiting admin approval.`, 'booking');
     return { id: result.id, message: 'Checkout request submitted for staff review' };
 };
 
@@ -110,22 +132,28 @@ const listCheckoutRequests = async (user) => {
     return rows;
 };
 
-const decideCheckoutRequest = async (actor, requestId, decision, note) => {
+const decideCheckoutRequest = async (actor, requestId, decision, note, clearanceConfirmed = false) => {
     if (!['approved', 'declined'].includes(decision)) {
         return { error: 'Decision must be approved or declined', status: 400 };
     }
+    if (decision === 'approved' && clearanceConfirmed !== true) {
+        return { error: 'Confirm that fees are cleared and the room is clean before approving checkout', status: 400 };
+    }
+    const decisionNote = decision === 'approved'
+        ? `Fees cleared; room inspected and clean (confirmed by admin).${note?.trim() ? ` ${note.trim()}` : ''}`
+        : note?.trim() || null;
     const result = await model.decideCheckoutRequest({
         requestId,
         reviewerId: actor.id,
         decision,
-        note: note?.trim() || null,
+        note: decisionNote,
     });
     if (!result) return { error: 'Pending checkout request not found', status: 404 };
     if (result.error) return result;
-    await sendNotification(
+    await notificationService.sendNotification(
         result.userId,
         decision === 'approved'
-            ? 'Your checkout request was approved. Your stay is now complete.'
+            ? 'Your departure clearance was approved. You can show the green clearance pass in Student Services at the gate.'
             : `Your checkout request was declined.${note?.trim() ? ` Note: ${note.trim()}` : ''}`,
         'booking'
     );
