@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const brevoEmailService = require('./brevoEmailService');
 const pool = require('../config/db');
 const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
@@ -165,31 +166,30 @@ const sendOtp = async (phone) => {
     await OtpModel.invalidateExisting(normalizedPhone);
     await OtpModel.createOtp(normalizedPhone, code, expiresAt);
 
-    // Send OTP via email
+    // Login OTP is sent through Brevo; password-reset mail still uses SMTP.
     const maskedEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
     try {
-        await getTransporter().sendMail({
-            from: `"Zetech Hostel" <${process.env.SMTP_EMAIL}>`,
-            to: user.email,
-            subject: 'Your Zetech Hostel Login Code',
-            html: `
-                <div style="font-family:Arial,sans-serif;max-width:400px;margin:0 auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px">
-                    <h2 style="color:#1a237e;text-align:center">Zetech Hostel</h2>
-                    <p>Hi <b>${user.full_name}</b>,</p>
-                    <p>Your login verification code is:</p>
-                    <div style="text-align:center;margin:20px 0">
-                        <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#1a237e">${code}</span>
-                    </div>
-                    <p style="color:#666;font-size:13px">This code expires in 5 minutes. Do not share it with anyone.</p>
-                </div>
-            `
+        await brevoEmailService.sendOtpEmail({
+            email: user.email,
+            fullName: user.full_name,
+            code,
         });
     } catch (emailErr) {
-        logger.error('[EMAIL ERROR] Failed to send OTP email', { message: emailErr.message });
-        // Log the code to server console in dev so you can still test without email
-        if (process.env.NODE_ENV !== 'production') {
-            logger.info(`[OTP FALLBACK] Code for ${normalizedPhone}: ${code}`);
+        logger.error('[EMAIL ERROR] Failed to send OTP email through Brevo', {
+            status: emailErr.response?.status,
+            code: emailErr.code,
+        });
+        try {
+            await OtpModel.invalidateExisting(normalizedPhone);
+        } catch (invalidateErr) {
+            logger.error('[OTP ERROR] Failed to invalidate undelivered code');
         }
+        return {
+            error: emailErr.code === 'ECONNABORTED'
+                ? 'The login code email timed out. Please try again.'
+                : 'Could not send the login code email. Please try again later.',
+            status: 503,
+        };
     }
 
     return { message: `OTP sent to ${maskedEmail}`, maskedEmail };
@@ -302,10 +302,18 @@ const forgotPassword = async (email) => {
             `
         });
     } catch (emailErr) {
-        logger.error('[EMAIL ERROR] Failed to send password reset email', { message: emailErr.message });
-        if (process.env.NODE_ENV !== 'production') {
-            logger.info(`[RESET FALLBACK] Code for ${email}: ${code}`);
+        logger.error('[EMAIL ERROR] Failed to send password reset email', {
+            code: emailErr.code,
+        });
+        try {
+            await OtpModel.invalidateExisting(email);
+        } catch (invalidateErr) {
+            logger.error('[RESET ERROR] Failed to invalidate undelivered code');
         }
+        return {
+            error: 'Could not send the password reset email. Check the email service configuration and try again.',
+            status: 503,
+        };
     }
 
     const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');

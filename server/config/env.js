@@ -18,7 +18,7 @@ const required = [
 ];
 
 // Optional but warned-about in production
-const recommended = ['ALLOWED_ORIGINS', 'RENDER_URL'];
+const recommended = ['ALLOWED_ORIGINS', 'RENDER_URL', 'BREVO_API_KEY', 'BREVO_SENDER_EMAIL'];
 
 function validateEnv() {
     const missing = required.filter(key => !process.env[key]);
@@ -27,6 +27,14 @@ function validateEnv() {
         missing.forEach(key => console.error(`   - ${key}`));
         console.error('\n   Add them to your .env file and restart the server.\n');
         process.exit(1);
+    }
+
+    const missingEmailConfig = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL']
+        .filter(key => !process.env[key]);
+    if (missingEmailConfig.length) {
+        console.warn(
+            `⚠️  Brevo OTP email is unavailable; missing environment variable(s): ${missingEmailConfig.join(', ')}.`
+        );
     }
 
     if (process.env.JWT_SECRET === 'your_jwt_secret_key_change_this') {

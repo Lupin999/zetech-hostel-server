@@ -27,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
   bool _otpSent = false;
+  String _maskedEmail = '';
 
   // Shared state
   bool _loading = false;
@@ -137,9 +138,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     setState(() { _loading = true; _error = null; _fieldError = null; });
     try {
-      await context.read<AuthProvider>().sendOtp(fullPhone);
-      setState(() { _otpSent = true; });
-      Fluttertoast.showToast(msg: 'OTP sent successfully', backgroundColor: Colors.green);
+      final result = await context.read<AuthProvider>().sendOtp(fullPhone);
+      final maskedEmail = result['maskedEmail']?.toString() ?? '';
+      setState(() {
+        _otpSent = true;
+        _maskedEmail = maskedEmail;
+      });
+      Fluttertoast.showToast(
+        msg: maskedEmail.isEmpty ? 'Code sent to your registered email' : 'Code sent to $maskedEmail',
+        backgroundColor: Colors.green,
+      );
     } catch (e) {
       setState(() { _error = e.toString().replaceFirst('Exception: ', ''); });
     }
@@ -232,6 +240,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             onPressed: () => context.go('/register'),
             child: const Text('No account? Register', style: TextStyle(color: AppTheme.primary)),
           ),
+          TextButton(
+            onPressed: () => context.push('/forgot-password'),
+            child: const Text('Forgot password?'),
+          ),
         ],
       ),
     );
@@ -275,7 +287,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           if (!_otpSent) ...[
             CustomButton(label: 'Send OTP', isLoading: _loading, onPressed: _loading ? null : _handleSendOtp),
           ] else ...[
-            Text('Code sent to your phone', style: TextStyle(color: Colors.green.shade700)),
+            Text(
+              _maskedEmail.isEmpty
+                  ? 'Code sent to your registered email'
+                  : 'Code sent to $_maskedEmail',
+              style: TextStyle(color: Colors.green.shade700),
+            ),
             const SizedBox(height: 16),
             CustomTextField(
               label: 'OTP Code',
@@ -289,7 +306,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             CustomButton(label: 'Verify & Login', isLoading: _loading, onPressed: _loading ? null : _handleVerifyOtp),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: () => setState(() { _otpSent = false; _otpController.clear(); _error = null; }),
+              onPressed: () => setState(() {
+                _otpSent = false;
+                _maskedEmail = '';
+                _otpController.clear();
+                _error = null;
+              }),
               child: const Text('Change phone number or resend code', style: TextStyle(color: AppTheme.primary)),
             ),
           ],
