@@ -3,7 +3,7 @@ import api from '../utils/api';
 const authService = {
     login: (email, password) => api.post('/auth/login', { email, password }),
     register: (data) => api.post('/auth/register', data),
-    sendOtp: (phone) => api.post('/auth/send-otp', { phone }),
+    sendOtp: (phone) => api.post('/auth/send-otp', { phone }, { timeout: 15000 }),
     verifyOtp: (phone, code) => api.post('/auth/verify-otp', { phone, code }),
     verifyToken: () => api.get('/auth/verify'),
     updateProfile: (full_name, course, email, phone) => api.put('/auth/profile/info', { full_name, course, email, phone }),

@@ -79,7 +79,12 @@ export default function Login() {
             toast.success(res.message || 'OTP sent to your email!');
         } catch (err) {
             const data = err.response?.data;
-            setError(data?.error || 'Failed to send OTP');
+            setError(
+                data?.error ||
+                (['ECONNABORTED', 'ETIMEDOUT'].includes(err.code)
+                    ? 'The request timed out. Check your email before requesting another code.'
+                    : 'Failed to send OTP')
+            );
             setFieldError(data?.field || '');
         } finally { setLoading(false); }
     };
