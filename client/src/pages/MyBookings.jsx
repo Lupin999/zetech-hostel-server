@@ -191,7 +191,8 @@ export default function MyBookings() {
             {!bookings.length ? (
                 <EmptyState icon={<EventBusy sx={{ fontSize: 80 }} />} title="No bookings yet" subtitle="Browse available rooms and make your first booking." />
             ) : (
-                <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+                <>
+                <TableContainer component={Paper} sx={{ display: { xs: 'none', sm: 'block' }, overflowX: 'auto' }}>
                     <Table>
                         <TableHead>
                             <TableRow>
@@ -227,11 +228,11 @@ export default function MyBookings() {
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {b.status === 'approved' && !payment && !isSuspended(b.suspended) && (
+                                            {b.status === 'approved' && (!payment || payment.status === 'pending') && !isSuspended(b.suspended) && (
                                                 <Box sx={{ display: 'flex', gap: 0.5 }}>
                                                     <Button size="small" variant="contained" color="success"
                                                         onClick={() => { setSelectedBooking(b); setMpesaOpen(true); }}>
-                                                        Pay KES {MIN_DEPOSIT.toLocaleString()} deposit
+                                                        {payment ? 'Retry M-Pesa payment' : `Pay KES ${MIN_DEPOSIT.toLocaleString()} deposit`}
                                                     </Button>
                                                 </Box>
                                             )}
@@ -245,6 +246,59 @@ export default function MyBookings() {
                         </TableBody>
                     </Table>
                 </TableContainer>
+                <Box sx={{ display: { xs: 'grid', sm: 'none' }, gap: 1.5 }}>
+                    {bookings.map(b => {
+                        const payment = getPayment(b.id);
+                        return (
+                            <Paper key={b.id} variant="outlined" sx={{ p: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                                    <Box>
+                                        <Typography variant="h6">Room {formatRoomNumber(b.room_number)}</Typography>
+                                        <Typography color="text.secondary">{formatHostelName(b.hostel)}</Typography>
+                                    </Box>
+                                    <BookingStatusChip status={b.status} />
+                                </Box>
+                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, my: 1.5 }}>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Price</Typography>
+                                        <Typography>KES {b.price}</Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Semester</Typography>
+                                        <Typography>{b.semester || '—'}</Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Booked on</Typography>
+                                        <Typography>{formatDate(b.created_at)}</Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Payment</Typography>
+                                        <Box>
+                                            {isSuspended(b.suspended) ? (
+                                                <Chip label="Suspended" color="error" size="small" />
+                                            ) : payment ? (
+                                                <Chip label={payment.status === 'confirmed' ? 'Paid' : 'Pending'}
+                                                    color={payment.status === 'confirmed' ? 'success' : 'warning'} size="small" variant="outlined" />
+                                            ) : (
+                                                b.status === 'approved' ? <Chip label="Unpaid" color="warning" size="small" variant="outlined" /> : '—'
+                                            )}
+                                        </Box>
+                                    </Box>
+                                </Box>
+                                {b.status === 'approved' && (!payment || payment.status === 'pending') && !isSuspended(b.suspended) && (
+                                    <Button fullWidth variant="contained" color="success"
+                                        onClick={() => { setSelectedBooking(b); setMpesaOpen(true); }}>
+                                        {payment ? 'Retry M-Pesa payment' : `Pay KES ${MIN_DEPOSIT.toLocaleString()} deposit`}
+                                    </Button>
+                                )}
+                                {b.status === 'pending' && (
+                                    <Button fullWidth color="error" onClick={() => handleCancel(b.id)}>Cancel booking</Button>
+                                )}
+                            </Paper>
+                        );
+                    })}
+                </Box>
+                </>
             )}
 
             <Paper sx={{ p: 2, mt: 3 }}>
@@ -252,7 +306,8 @@ export default function MyBookings() {
                 {!payments.length ? (
                     <Typography color="text.secondary">No payment records yet.</Typography>
                 ) : (
-                    <TableContainer sx={{ overflowX: 'auto' }}>
+                    <>
+                    <TableContainer sx={{ display: { xs: 'none', sm: 'block' }, overflowX: 'auto' }}>
                         <Table size="small">
                             <TableHead><TableRow>{['Date', 'Room', 'Amount', 'Method', 'Status', 'Receipt'].map((label) => <TableCell key={label}>{label}</TableCell>)}</TableRow></TableHead>
                             <TableBody>{payments.map((payment) => (
@@ -267,6 +322,32 @@ export default function MyBookings() {
                             ))}</TableBody>
                         </Table>
                     </TableContainer>
+                    <Box sx={{ display: { xs: 'grid', sm: 'none' }, gap: 1.5 }}>
+                        {payments.map((payment) => (
+                            <Paper key={payment.id} variant="outlined" sx={{ p: 1.5 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                                    <Box>
+                                        <Typography fontWeight={700}>KES {Number(payment.amount).toLocaleString()}</Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {formatHostelName(payment.hostel)} {formatRoomNumber(payment.room_number)}
+                                        </Typography>
+                                    </Box>
+                                    <Chip size="small" label={payment.status === 'confirmed' ? 'Paid' : 'Pending'}
+                                        color={payment.status === 'confirmed' ? 'success' : 'warning'} />
+                                </Box>
+                                <Typography variant="body2" sx={{ mt: 1 }}>
+                                    {formatDate(payment.payment_date)} · {formatPaymentMethod(payment.payment_method)}
+                                </Typography>
+                                {payment.status === 'confirmed' && (
+                                    <Button size="small" startIcon={<ReceiptLong />} onClick={() => viewReceipt(payment)}
+                                        disabled={receiptLoading} sx={{ mt: 0.5 }}>
+                                        View receipt
+                                    </Button>
+                                )}
+                            </Paper>
+                        ))}
+                    </Box>
+                    </>
                 )}
             </Paper>
 
