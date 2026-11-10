@@ -24,7 +24,7 @@ class Booking {
     semester: json['semester']?.toString(),
     arrivalDate: (json['arrivalDate'] ?? json['arrival_date'])?.toString(),
     status: json['status']?.toString(),
-    suspended: json['suspended'],
+    suspended: _readBool(json['suspended']),
     roomNumber: (json['roomNumber'] ?? json['room_number'])?.toString(),
     hostel: json['hostel']?.toString(),
     bedNumber: _readBedNumber(json['bedNumber'] ?? json['bed_number']),
@@ -38,6 +38,11 @@ class Booking {
     return bedNumber == null || bedNumber.isEmpty || bedNumber == '0'
         ? null
         : bedNumber;
+  }
+
+  static bool? _readBool(dynamic value) {
+    if (value == null) return null;
+    return value == true || value == 1 || value.toString() == '1';
   }
 
   static double? _readDouble(dynamic value) {

@@ -10,6 +10,9 @@ import api from '../utils/api';
 import { formatHostelName } from '../utils/helpers';
 
 const inputSx = { mb: 2.5, '& input': { color: '#000' }, '& input::placeholder': { color: '#000', opacity: 0.7 } };
+const admissionGroups = Array.from({ length: 100 }, (_, index) => String(index).padStart(2, '0'));
+const currentYear = new Date().getFullYear();
+const admissionYears = Array.from({ length: currentYear - 1979 }, (_, index) => String(currentYear + 1 - index));
 
 export default function Register() {
     const [form, setForm] = useState({ regGroup: '', regSequence: '', regYear: '', email: '', full_name: '', course: '', password: '', confirmPassword: '', gender: 'Male', phoneNumber: '' });
@@ -111,16 +114,20 @@ export default function Register() {
                                 </MenuItem>
                             ))}
                         </TextField>
-                        <Box sx={{ display: 'flex', gap: 1, mb: 0.5 }}>
-                            <TextField label="00-99" placeholder="01" inputProps={{ inputMode: 'numeric', maxLength: 2 }}
-                                fullWidth sx={inputSx} value={form.regGroup} onChange={update('regGroup')}
-                                error={!!errors.regGroup} helperText={errors.regGroup} />
-                            <TextField label="0000-9999" placeholder="0046" inputProps={{ inputMode: 'numeric', maxLength: 4 }}
-                                fullWidth sx={inputSx} value={form.regSequence} onChange={update('regSequence')}
-                                error={!!errors.regSequence} helperText={errors.regSequence} />
-                            <TextField label="Year" placeholder="2024" inputProps={{ inputMode: 'numeric', maxLength: 4 }}
-                                fullWidth sx={inputSx} value={form.regYear} onChange={update('regYear')}
-                                error={!!errors.regYear} helperText={errors.regYear} />
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1.2fr 1fr' }, gap: 1, mb: 0.5 }}>
+                            <TextField select label="Group" fullWidth sx={inputSx} value={form.regGroup}
+                                onChange={update('regGroup')} error={!!errors.regGroup} helperText={errors.regGroup || '00-99'}>
+                                {admissionGroups.map(group => <MenuItem key={group} value={group}>{group}</MenuItem>)}
+                            </TextField>
+                            <TextField select label="Admission year" fullWidth sx={{ ...inputSx, gridColumn: { sm: '3' } }} value={form.regYear}
+                                onChange={update('regYear')} error={!!errors.regYear} helperText={errors.regYear || 'Select year'}>
+                                {admissionYears.map(year => <MenuItem key={year} value={year}>{year}</MenuItem>)}
+                            </TextField>
+                            <TextField label="Student number" placeholder="0046" type="number"
+                                inputProps={{ inputMode: 'numeric', min: 0, max: 9999, step: 1 }}
+                                fullWidth sx={{ ...inputSx, gridColumn: { xs: '1 / -1', sm: '2' } }}
+                                value={form.regSequence} onChange={update('regSequence')}
+                                error={!!errors.regSequence} helperText={errors.regSequence || '0000-9999'} />
                         </Box>
                         <Typography variant="caption" sx={{ display: 'block', mt: -1.5, mb: 2, color: '#4b5563' }}>
                             Example: BSE-01'0046/2024. Enter your own programme code, group, student number, and admission year.

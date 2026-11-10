@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -45,6 +46,18 @@ class _ConnectionStatusBannerState extends State<ConnectionStatusBanner> {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         _setError(
           'The server returned HTTP ${response.statusCode}. Check the server and try again.',
+        );
+        return;
+      }
+      final status = jsonDecode(response.body);
+      if (status is! Map<String, dynamic> || status['status'] != 'running') {
+        _setError('The API responded, but returned an unexpected status.');
+        return;
+      }
+      if (status['database'] != 'connected') {
+        _setError(
+          'The API is reachable, but its database is ${status['database'] ?? 'unavailable'}. '
+          'Check the database service and server configuration.',
         );
         return;
       }

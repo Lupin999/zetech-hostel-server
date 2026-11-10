@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../config/app_theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/payment_model.dart';
 import '../../utils/helpers.dart';
@@ -11,9 +10,8 @@ class BookingCard extends StatelessWidget {
   final List<Payment> payments;
   final VoidCallback onCancel;
   final VoidCallback onMpesaPay;
-  final VoidCallback onManualPay;
 
-  const BookingCard({super.key, required this.booking, required this.payments, required this.onCancel, required this.onMpesaPay, required this.onManualPay});
+  const BookingCard({super.key, required this.booking, required this.payments, required this.onCancel, required this.onMpesaPay});
 
   Payment? get _payment {
     try {
@@ -95,20 +93,12 @@ class BookingCard extends StatelessWidget {
                       child: const Text('Cancel'),
                     ),
                   ),
-                if (booking.status == 'approved' && !_isPaid) ...[
+                if (booking.status == 'approved' && !_isPaid && booking.suspended != true) ...[
                   Expanded(
                     child: ElevatedButton(
                       onPressed: onMpesaPay,
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                      child: const Text('Pay Now'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: onManualPay,
-                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.secondary),
-                      child: const Text('Manual Pay', style: TextStyle(color: Colors.black)),
+                      child: const Text('Pay KES 12,000 deposit'),
                     ),
                   ),
                 ],

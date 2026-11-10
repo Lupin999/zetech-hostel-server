@@ -6,13 +6,13 @@ class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
 
   static const List<Map<String, String>> _weeklyMenu = [
-    {'day': 'Monday', 'meal': 'Rice', 'image': 'assets/images/rice.jpg'},
-    {'day': 'Tuesday', 'meal': 'Cabbage', 'image': 'assets/images/cabbage.jpg'},
-    {'day': 'Wednesday', 'meal': 'Rice', 'image': 'assets/images/rice.jpg'},
-    {'day': 'Thursday', 'meal': 'Ugali', 'image': 'assets/images/ugali.jpg'},
-    {'day': 'Friday', 'meal': 'Rice', 'image': 'assets/images/rice.jpg'},
-    {'day': 'Saturday', 'meal': 'Mixed', 'image': 'assets/images/mixed.jpg'},
-    {'day': 'Sunday', 'meal': 'Pilau', 'image': 'assets/images/pilau.jpg'},
+    {'day': 'Monday', 'breakfast': 'Bread & Tea', 'supper': 'Monday Special', 'image': 'assets/images/rice.jpg'},
+    {'day': 'Tuesday', 'breakfast': 'Bread & Tea', 'supper': 'Cabbage & Ugali', 'image': 'assets/images/cabbage.jpg'},
+    {'day': 'Wednesday', 'breakfast': 'Bread & Tea', 'supper': 'Rice & Stew', 'image': 'assets/images/rice.jpg'},
+    {'day': 'Thursday', 'breakfast': 'Bread & Tea', 'supper': 'Ugali & Sukuma', 'image': 'assets/images/ugali.jpg'},
+    {'day': 'Friday', 'breakfast': 'Bread & Tea', 'supper': 'Rice & Beans', 'image': 'assets/images/rice.jpg'},
+    {'day': 'Saturday', 'breakfast': 'Bread & Tea', 'supper': 'Chapati & Stew', 'image': 'assets/images/mixed.jpg'},
+    {'day': 'Sunday', 'breakfast': 'Bread & Tea', 'supper': 'Pilau', 'image': 'assets/images/pilau.jpg'},
   ];
 
   int get _todayIndex => DateTime.now().weekday - 1;
@@ -81,7 +81,11 @@ class MenuScreen extends StatelessWidget {
                       child: Image.asset(today['image']!, height: 180, width: double.infinity, fit: BoxFit.cover),
                     ),
                     const SizedBox(height: 8),
-                    Text(today['meal']!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(
+                      'Breakfast: ${today['breakfast']}\nSupper: ${today['supper']}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
               ),
@@ -123,7 +127,17 @@ class MenuScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Text(item['meal']!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(
+              'Breakfast · ${item['breakfast']}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Supper · ${item['supper']}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            ),
             const SizedBox(height: 4),
             const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(Icons.coffee, size: 12, color: Colors.brown),

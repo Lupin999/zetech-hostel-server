@@ -293,7 +293,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 title: Text('KES ${payment['amount']} · ${payment['status']}'),
                 subtitle: Text(
                   'Room ${payment['room_number']} · ${payment['payment_method'] == 'legacy_manual' ? 'Legacy manual (historical)' : 'M-Pesa'}\n'
-                  'Reference: ${payment['mpesa_code'] ?? '—'} · ${payment['payment_date']}',
+                  '${payment['status'] == 'confirmed' ? 'Safaricom receipt: ${payment['mpesa_code'] ?? '—'}' : 'Awaiting M-Pesa verification'} · ${payment['payment_date']}',
                 ),
               ),
             ),
@@ -308,7 +308,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         const Text(
-          'Checkout requests must be approved by an admin or warden before your stay ends.',
+          'Checkout requests must be approved by an admin before your stay ends.',
         ),
         const SizedBox(height: 12),
         if (_currentStay == null)

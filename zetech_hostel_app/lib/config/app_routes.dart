@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../screens/splash_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
+import '../screens/auth/forgot_password_screen.dart';
 import '../screens/student/dashboard_screen.dart';
 import '../screens/student/rooms_screen.dart';
 import '../screens/student/my_bookings_screen.dart';
@@ -12,9 +13,11 @@ import '../screens/student/notices_screen.dart';
 import '../screens/student/menu_screen.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/account_operations_screen.dart';
+import '../screens/admin/admin_operations_screen.dart';
 import '../screens/student/profile_screen.dart';
 import '../screens/student/services_screen.dart';
 import '../screens/auth/create_admin_screen.dart';
+import '../screens/help_screen.dart';
 
 class AppRoutes {
   static final router = GoRouter(
@@ -26,7 +29,7 @@ class AppRoutes {
       final location = state.matchedLocation;
       if (isLoading) return null;
 
-      final authRoutes = ['/login', '/register'];
+      final authRoutes = ['/login', '/register', '/forgot-password'];
 
       if (!isLoggedIn &&
           !authRoutes.contains(location) &&
@@ -47,6 +50,10 @@ class AppRoutes {
     routes: [
       GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
@@ -71,7 +78,7 @@ class AppRoutes {
         redirect: (context, state) {
           final auth = context.read<AuthProvider>();
           final role = auth.user?.role?.toLowerCase() ?? '';
-          if (!['admin', 'warden'].contains(role)) {
+          if (role != 'admin') {
             return auth.homeRoute;
           }
           return null;
@@ -82,7 +89,18 @@ class AppRoutes {
         builder: (context, state) => const AccountOperationsScreen(),
         redirect: (context, state) {
           final auth = context.read<AuthProvider>();
-          if (auth.user?.role?.toLowerCase() != 'accounts') {
+          if (auth.user?.role?.toLowerCase() != 'admin') {
+            return auth.homeRoute;
+          }
+          return null;
+        },
+      ),
+      GoRoute(
+        path: '/operations-management',
+        builder: (context, state) => const AdminOperationsScreen(),
+        redirect: (context, state) {
+          final auth = context.read<AuthProvider>();
+          if (auth.user?.role?.toLowerCase() != 'admin') {
             return auth.homeRoute;
           }
           return null;
@@ -92,6 +110,7 @@ class AppRoutes {
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
       ),
+      GoRoute(path: '/help', builder: (context, state) => const HelpScreen()),
       GoRoute(
         path: '/services',
         builder: (context, state) => const ServicesScreen(),

@@ -90,10 +90,7 @@ class AuthProvider extends ChangeNotifier {
   String get homeRoute {
     switch (user?.role?.toLowerCase()) {
       case 'admin':
-      case 'warden':
         return '/admin';
-      case 'accounts':
-        return '/operations';
       default:
         return '/dashboard';
     }

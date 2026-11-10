@@ -53,23 +53,6 @@ class _AccountOperationsScreenState extends State<AccountOperationsScreen> {
     }
   }
 
-  Future<void> _confirmPayment(Map<String, dynamic> payment) async {
-    final id = payment['id'] ?? payment['_id'];
-    if (id == null) {
-      _showMessage('This payment has no valid ID');
-      return;
-    }
-    try {
-      await ApiClient.patch(ApiConfig.confirmPayment(id));
-      _showMessage(
-        'Payment for ${payment['full_name'] ?? 'student'} confirmed',
-      );
-      await _loadPayments();
-    } catch (error) {
-      _showMessage(error.toString().replaceFirst('Exception: ', ''));
-    }
-  }
-
   Future<void> _viewReceipt(Map<String, dynamic> payment) async {
     final id = payment['id'] ?? payment['_id'];
     if (id == null) {
@@ -97,7 +80,7 @@ class _AccountOperationsScreenState extends State<AccountOperationsScreen> {
                 amount == null ? '—' : 'KES ${Helpers.formatAmount(amount)}',
               ),
               _receiptLine('Payment method', payment['payment_method']),
-              _receiptLine('M-Pesa code', receipt['mpesa_code']),
+              _receiptLine('Safaricom receipt', receipt['mpesa_code']),
               _receiptLine('Status', receipt['status']),
               _receiptLine(
                 'Date',
@@ -147,6 +130,11 @@ class _AccountOperationsScreenState extends State<AccountOperationsScreen> {
       appBar: AppBar(
         title: const Text('Finance operations'),
         actions: [
+          IconButton(
+            tooltip: 'Help',
+            onPressed: () => context.push('/help'),
+            icon: const Icon(Icons.help_outline),
+          ),
           IconButton(
             tooltip: 'Profile',
             onPressed: () => context.go('/profile'),
@@ -229,11 +217,7 @@ class _AccountOperationsScreenState extends State<AccountOperationsScreen> {
                                   spacing: 8,
                                   children: [
                                     if (status == 'pending')
-                                      FilledButton.tonal(
-                                        onPressed: () =>
-                                            _confirmPayment(payment),
-                                        child: const Text('Confirm payment'),
-                                      ),
+                                      const Text('Awaiting Safaricom verification'),
                                     if (status == 'confirmed')
                                       TextButton(
                                         onPressed: () => _viewReceipt(payment),

@@ -7,9 +7,8 @@ class AdminPaymentCard extends StatelessWidget {
   final Payment payment;
   final String? studentName;
   final String? regNo;
-  final VoidCallback onConfirm;
 
-  const AdminPaymentCard({super.key, required this.payment, this.studentName, this.regNo, required this.onConfirm});
+  const AdminPaymentCard({super.key, required this.payment, this.studentName, this.regNo});
 
   @override
   Widget build(BuildContext context) {
@@ -44,24 +43,13 @@ class AdminPaymentCard extends StatelessWidget {
                 ),
                 child: Text(payment.paymentMethodLabel, style: const TextStyle(fontSize: 11)),
               ),
-              if (payment.mpesaCode != null && payment.mpesaCode!.isNotEmpty) ...[
+              if (payment.status == 'confirmed' && payment.mpesaCode != null && payment.mpesaCode!.isNotEmpty) ...[
                 const SizedBox(width: 8),
-                Text(payment.mpesaCode!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Expanded(child: Text('Safaricom receipt: ${payment.mpesaCode}', style: const TextStyle(fontSize: 11, color: Colors.grey))),
               ],
             ]),
             const SizedBox(height: 4),
             Text('Date: ${Helpers.formatDate(payment.paymentDate)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            if (payment.status?.toLowerCase() == 'pending') ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: onConfirm,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Text('Confirm Payment'),
-                ),
-              ),
-            ],
           ],
         ),
       ),

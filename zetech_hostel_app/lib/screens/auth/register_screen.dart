@@ -131,8 +131,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
       return;
     }
+    if (phone.isEmpty) {
+      setState(() {
+        _error = 'Phone number is required for login and M-Pesa';
+        _fieldError = 'phone';
+      });
+      return;
+    }
+    final phoneDigits = phone.replaceAll(RegExp(r'\D'), '');
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+      setState(() {
+        _error = 'Enter a valid phone number';
+        _fieldError = 'phone';
+      });
+      return;
+    }
     final regNo =
-        '${programme['code']}-${regGroup.padLeft(2, '0')}-${regSequence.padLeft(4, '0')}/$regYear';
+        '${programme['code']}-${regGroup.padLeft(2, '0')}\u0027${regSequence.padLeft(4, '0')}/$regYear';
     if (email.isEmpty) {
       setState(() {
         _error = 'Email is required';
@@ -202,7 +217,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'full_name': fullName,
         'password': password,
       };
-      if (phone.isNotEmpty) data['phone'] = phone;
+      data['phone'] = phone;
       data['course'] = course;
 
       await context.read<AuthProvider>().register(data);
@@ -289,10 +304,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
               CustomTextField(
-                label: 'Phone Number (optional)',
+                label: 'Phone Number (required)',
                 hint: '0712345678',
                 controller: _phoneController,
                 keyboardType: TextInputType.number,
+                errorText: _fieldError == 'phone' ? _error : null,
                 onChanged: (_) => _clearError(),
               ),
               const SizedBox(height: 16),
@@ -336,7 +352,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Padding(
                   padding: EdgeInsets.only(top: 6),
                   child: Text(
-                    'Your registration number remains your student identifier. Programme selection does not verify enrollment.',
+                    "Example admission number: BSE-01'0046/2024. Programme selection and number format do not verify enrollment; the school registry is not connected.",
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ),
@@ -350,7 +366,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Enter a number from 0-99, a number from 0-9999, and a four-digit year.',
+                  "Enter your group (00-99), student number (0000-9999), and admission year. The example format uses an apostrophe: BSE-01'0046/2024.",
                   style: TextStyle(color: Color(0xFF4B5563), fontSize: 12),
                 ),
               ),

@@ -33,6 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   HealthProfile? _healthProfile;
 
   final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
   List<Map<String, dynamic>> _programmes = [];
   String? _selectedCourse;
   bool _programmesLoading = true;
@@ -53,6 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     final user = context.read<AuthProvider>().user;
     _fullNameController.text = user?.fullName ?? '';
+    _phoneController.text = user?.phone ?? '';
     _selectedCourse = user?.course;
     _loadProgrammes();
     _loadData();
@@ -61,6 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _fullNameController.dispose();
+    _phoneController.dispose();
     _medicalController.dispose();
     _dietaryController.dispose();
     _currentPasswordController.dispose();
@@ -128,13 +131,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int get _unpaidCount => _bookings.where((b) => b['status'] == 'approved').length - _paidCount;
 
   Future<void> _updateProfile() async {
+    final auth = context.read<AuthProvider>();
+    final phone = _phoneController.text.trim();
+    if (auth.user?.role == 'student' && phone.isEmpty) {
+      Fluttertoast.showToast(msg: 'Phone number is required for student login');
+      return;
+    }
     setState(() { _savingProfile = true; });
     try {
       await ApiClient.put('${ApiConfig.baseUrl}/auth/profile/info', body: {
         'full_name': _fullNameController.text.trim(),
         'course': _selectedCourse,
+        'phone': phone,
       });
-      final auth = context.read<AuthProvider>();
       auth.updateUser(User(
         id: auth.user?.id,
         regNo: auth.user?.regNo,
@@ -142,7 +151,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fullName: _fullNameController.text.trim(),
         role: auth.user?.role,
         campus: auth.user?.campus,
-        phone: auth.user?.phone,
+        phone: phone.isEmpty ? auth.user?.phone : phone,
         course: _selectedCourse,
       ));
       Fluttertoast.showToast(msg: 'Profile updated successfully', backgroundColor: Colors.green);
@@ -219,7 +228,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 'KES ${Helpers.formatAmount((receipt['amount'] as num?) ?? 0)}',
               ),
               _receiptLine('Method', payment.paymentMethodLabel),
-              _receiptLine('M-Pesa code', receipt['mpesa_code']),
+              _receiptLine('Safaricom receipt', receipt['mpesa_code']),
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Payment is credited toward hostel fees and is non-refundable.',
+                  style: TextStyle(color: Colors.black54, fontSize: 12),
+                ),
+              ),
               _receiptLine('Status', receipt['status']),
               _receiptLine(
                 'Date',
@@ -339,7 +355,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go(
-            ['admin', 'accounts', 'warden'].contains(user?.role)
+            user?.role == 'admin'
                 ? '/admin'
                 : '/dashboard',
           ),
@@ -445,6 +461,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const Row(children: [Icon(Icons.person, color: AppTheme.primary), SizedBox(width: 8), Text('Personal Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
                             const SizedBox(height: 16),
                             CustomTextField(label: 'Full Name', controller: _fullNameController),
+                            const SizedBox(height: 12),
+                            CustomTextField(
+                              label: 'Phone Number',
+                              hint: 'e.g. 0712345678 or +254712345678',
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                            ),
                             const SizedBox(height: 12),
                             DropdownButtonFormField<String>(
                               initialValue: _selectedCourse,

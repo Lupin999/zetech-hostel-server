@@ -263,6 +263,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Zetech Hostel'),
         actions: [
+          IconButton(
+            tooltip: 'Help',
+            icon: const Icon(Icons.help_outline),
+            onPressed: () => context.push('/help'),
+          ),
           Badge(
             label: _unreadCount > 0 ? Text('$_unreadCount') : null,
             isLabelVisible: _unreadCount > 0,

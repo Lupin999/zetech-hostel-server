@@ -3,12 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import '../../config/api_config.dart';
 import '../../config/app_theme.dart';
 import '../../models/booking_model.dart';
 import '../../models/payment_model.dart';
-import '../../providers/auth_provider.dart';
 import '../../utils/api_client.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common/custom_button.dart';
@@ -16,6 +14,7 @@ import '../../widgets/common/custom_text_field.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/loading_spinner.dart';
 import '../../widgets/bookings/booking_card.dart';
+import '../../widgets/bookings/payment_status_chip.dart';
 
 class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({super.key});
@@ -27,6 +26,7 @@ class MyBookingsScreen extends StatefulWidget {
 class _MyBookingsScreenState extends State<MyBookingsScreen> {
   List<Booking> _bookings = [];
   List<Payment> _payments = [];
+  String? _paymentsError;
   bool _loading = true;
 
   @override
@@ -63,12 +63,19 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       // Server returns a flat array of payment objects
       final res = await ApiClient.get(ApiConfig.myPayments);
       final list = res is List ? res : [];
+      if (!mounted) return;
       setState(() {
         _payments = list
             .map((p) => Payment.fromJson(Map<String, dynamic>.from(p)))
             .toList();
+        _paymentsError = null;
       });
-    } catch (_) {}
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _paymentsError = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
 
   int get _totalCount => _bookings.length;
@@ -138,12 +145,17 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Amount: KES ${Helpers.formatAmount(30000)}',
+                  'Deposit due now: KES ${Helpers.formatAmount(12000)}',
                   style: const TextStyle(
                     fontSize: 16,
                     color: AppTheme.primary,
                     fontWeight: FontWeight.bold,
                   ),
+                ),
+                const Text(
+                  'This deposit is credited toward hostel fees and is non-refundable.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
                 CustomTextField(
@@ -179,7 +191,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                               dialogType: DialogType.info,
                               title: 'Check Your Phone',
                               desc:
-                                  'Enter your M-Pesa PIN to complete payment of KES ${Helpers.formatAmount(30000)}',
+                                  'Enter your M-Pesa PIN to pay the hostel deposit of KES ${Helpers.formatAmount(12000)}',
                               btnOkOnPress: () {},
                             ).show();
                             _pollPayment(booking.id!);
@@ -244,119 +256,6 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     });
   }
 
-  void _handleManualPay(Booking booking) {
-    final amountController = TextEditingController(
-      text: (booking.price ?? 30000).toStringAsFixed(0),
-    );
-    final mpesaCodeController = TextEditingController();
-    const paymentMethod = 'mpesa';
-    bool submitting = false;
-    final registrationNumber =
-        context.read<AuthProvider>().user?.regNo ??
-        'Your admission/registration number';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Manual Payment',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Pay via M-Pesa: Lipa na M-Pesa → Paybill. Business number: ${ApiConfig.schoolPaybill}. '
-                    'Account number: $registrationNumber. Pay the amount below, then enter the M-Pesa confirmation code. '
-                    'Payment remains pending until staff verify it.',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                CustomTextField(
-                  label: 'Amount',
-                  controller: amountController,
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
-                CustomTextField(
-                  label: 'M-Pesa Code',
-                  hint: 'e.g. SHK12345XY',
-                  controller: mpesaCodeController,
-                ),
-                const SizedBox(height: 16),
-                CustomButton(
-                  label: 'Submit Payment',
-                  isLoading: submitting,
-                  onPressed: submitting
-                      ? null
-                      : () async {
-                          setSheetState(() {
-                            submitting = true;
-                          });
-                          try {
-                            await ApiClient.post(
-                              ApiConfig.payments,
-                              body: {
-                                'booking_id': booking.id,
-                                'amount':
-                                    double.tryParse(amountController.text) ??
-                                    30000,
-                                'payment_method': paymentMethod,
-                                'mpesa_code': mpesaCodeController.text.trim(),
-                              },
-                            );
-                            Navigator.pop(ctx);
-                            Fluttertoast.showToast(
-                              msg:
-                                  'Payment submitted, awaiting admin confirmation',
-                              backgroundColor: Colors.green,
-                            );
-                            _loadData();
-                          } catch (e) {
-                            setSheetState(() {
-                              submitting = false;
-                            });
-                            AwesomeDialog(
-                              context: context,
-                              dialogType: DialogType.error,
-                              title: 'Error',
-                              desc: e.toString().replaceFirst(
-                                'Exception: ',
-                                '',
-                              ),
-                              btnOkOnPress: () {},
-                            ).show();
-                          }
-                        },
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -371,53 +270,130 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           ? const LoadingSpinner()
           : RefreshIndicator(
               onRefresh: _loadData,
-              child: _bookings.isEmpty
-                  ? ListView(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (_bookings.isEmpty) ...[
+                    const SizedBox(height: 100),
+                    const EmptyState(
+                      icon: Icons.calendar_today,
+                      title: 'No bookings yet',
+                      subtitle:
+                          'Browse available rooms and make your first booking',
+                    ),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 48),
+                      child: CustomButton(
+                        label: 'Browse Rooms',
+                        onPressed: () => context.go('/rooms'),
+                      ),
+                    ),
+                  ] else ...[
+                    Row(
                       children: [
-                        const SizedBox(height: 100),
-                        const EmptyState(
-                          icon: Icons.calendar_today,
-                          title: 'No bookings yet',
-                          subtitle:
-                              'Browse available rooms and make your first booking',
-                        ),
-                        const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 48),
-                          child: CustomButton(
-                            label: 'Browse Rooms',
-                            onPressed: () => context.go('/rooms'),
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        // Stats Row
-                        Row(
-                          children: [
-                            _statCard('Total', _totalCount, Colors.blue),
-                            const SizedBox(width: 8),
-                            _statCard('Approved', _approvedCount, Colors.green),
-                            const SizedBox(width: 8),
-                            _statCard('Pending', _pendingCount, Colors.amber),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Bookings list
-                        ..._bookings.map(
-                          (b) => BookingCard(
-                            booking: b,
-                            payments: _payments,
-                            onCancel: () => _handleCancel(b),
-                            onMpesaPay: () => _handleMpesaPay(b),
-                            onManualPay: () => _handleManualPay(b),
-                          ),
-                        ),
+                        _statCard('Total', _totalCount, Colors.blue),
+                        const SizedBox(width: 8),
+                        _statCard('Approved', _approvedCount, Colors.green),
+                        const SizedBox(width: 8),
+                        _statCard('Pending', _pendingCount, Colors.amber),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    ..._bookings.map(
+                      (b) => BookingCard(
+                        booking: b,
+                        payments: _payments,
+                        onCancel: () => _handleCancel(b),
+                        onMpesaPay: () => _handleMpesaPay(b),
+                      ),
+                    ),
+                  ],
+                  _buildPaymentHistory(),
+                ],
+              ),
             ),
+    );
+  }
+
+  Widget _buildPaymentHistory() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        const Text(
+          'Payment history',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        if (_paymentsError != null)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Could not load payments: $_paymentsError'),
+                  ),
+                  IconButton(
+                    onPressed: _fetchPayments,
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Retry',
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (_payments.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No payment records yet.'),
+            ),
+          )
+        else
+          ..._payments.map(
+            (payment) => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.payment, color: Colors.blueGrey),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'KES ${Helpers.formatAmount(payment.amount ?? 0)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        PaymentStatusChip(status: payment.status ?? 'pending'),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Room ${Helpers.formatRoomNumber(payment.roomNumber)} · '
+                      '${Helpers.formatHostelName(payment.hostel)}',
+                    ),
+                    Text('Method: ${payment.paymentMethodLabel}'),
+                    if (payment.paymentDate != null)
+                      Text('Date: ${Helpers.formatDate(payment.paymentDate)}'),
+                    if (payment.status == 'confirmed' &&
+                        payment.mpesaCode?.isNotEmpty == true)
+                      Text('M-Pesa receipt: ${payment.mpesaCode}'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

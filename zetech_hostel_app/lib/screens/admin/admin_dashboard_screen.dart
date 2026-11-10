@@ -62,9 +62,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() { _loading = true; });
-    await Future.wait([_fetchBookings(), _fetchRooms(), _fetchPayments(), _fetchNotices()]);
-    setState(() { _loading = false; });
+    setState(() {
+      _loading = true;
+    });
+    await Future.wait([
+      _fetchBookings(),
+      _fetchRooms(),
+      _fetchPayments(),
+      _fetchNotices(),
+    ]);
+    setState(() {
+      _loading = false;
+    });
   }
 
   Future<void> _fetchBookings() async {
@@ -85,7 +94,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final res = await ApiClient.get(ApiConfig.rooms);
       final list = res is List ? res : [];
       setState(() {
-        _rooms = list.map((r) => Room.fromJson(Map<String, dynamic>.from(r))).toList();
+        _rooms = list
+            .map((r) => Room.fromJson(Map<String, dynamic>.from(r)))
+            .toList();
         _filterRooms();
       });
     } catch (_) {}
@@ -121,13 +132,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     setState(() {
       _filteredBookings = _bookingsRaw.where((b) {
         // Server returns full_name and reg_no (snake_case)
-        final name = (b['full_name'] ?? b['studentName'] ?? '').toString().toLowerCase();
+        final name = (b['full_name'] ?? b['studentName'] ?? '')
+            .toString()
+            .toLowerCase();
         final reg = (b['reg_no'] ?? b['regNo'] ?? '').toString().toLowerCase();
         final status = (b['status'] ?? '').toString().toLowerCase();
-        final matchSearch = _bookingSearch.isEmpty ||
+        final matchSearch =
+            _bookingSearch.isEmpty ||
             name.contains(_bookingSearch.toLowerCase()) ||
             reg.contains(_bookingSearch.toLowerCase());
-        final matchStatus = _bookingStatusFilter == 'All' ||
+        final matchStatus =
+            _bookingStatusFilter == 'All' ||
             status == _bookingStatusFilter.toLowerCase();
         return matchSearch && matchStatus;
       }).toList();
@@ -137,9 +152,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _filterRooms() {
     setState(() {
       _filteredRooms = _rooms.where((r) {
-        final matchSearch = _roomSearch.isEmpty ||
-            (r.roomNumber?.toLowerCase().contains(_roomSearch.toLowerCase()) ?? false) ||
-            (r.campus?.toLowerCase().contains(_roomSearch.toLowerCase()) ?? false);
+        final matchSearch =
+            _roomSearch.isEmpty ||
+            (r.roomNumber?.toLowerCase().contains(_roomSearch.toLowerCase()) ??
+                false) ||
+            (r.campus?.toLowerCase().contains(_roomSearch.toLowerCase()) ??
+                false);
         return matchSearch;
       }).toList();
     });
@@ -149,13 +167,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     setState(() {
       _filteredPayments = _paymentsRaw.where((p) {
         // Server returns full_name and reg_no (snake_case)
-        final name = (p['full_name'] ?? p['studentName'] ?? '').toString().toLowerCase();
+        final name = (p['full_name'] ?? p['studentName'] ?? '')
+            .toString()
+            .toLowerCase();
         final reg = (p['reg_no'] ?? p['regNo'] ?? '').toString().toLowerCase();
         final status = (p['status'] ?? '').toString().toLowerCase();
-        final matchSearch = _paymentSearch.isEmpty ||
+        final matchSearch =
+            _paymentSearch.isEmpty ||
             name.contains(_paymentSearch.toLowerCase()) ||
             reg.contains(_paymentSearch.toLowerCase());
-        final matchStatus = _paymentStatusFilter == 'All' ||
+        final matchStatus =
+            _paymentStatusFilter == 'All' ||
             status == _paymentStatusFilter.toLowerCase();
         return matchSearch && matchStatus;
       }).toList();
@@ -163,28 +185,44 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // Stats
-  int get _bedsTaken => _bookingsRaw.where((b) => b['status'] == 'approved').length;
-  int get _totalBeds => _rooms.fold(0, (total, room) => total + (room.capacity ?? 0));
-  int get _pendingCount => _bookingsRaw.where((b) => b['status'] == 'pending').length;
-  int get _approvedCount => _bookingsRaw.where((b) => b['status'] == 'approved').length;
-  int get _rejectedCount => _bookingsRaw.where((b) => b['status'] == 'rejected').length;
-  int get _cancelledCount => _bookingsRaw.where((b) => b['status'] == 'cancelled').length;
+  int get _bedsTaken =>
+      _bookingsRaw.where((b) => b['status'] == 'approved').length;
+  int get _totalBeds =>
+      _rooms.fold(0, (total, room) => total + (room.capacity ?? 0));
+  int get _pendingCount =>
+      _bookingsRaw.where((b) => b['status'] == 'pending').length;
+  int get _approvedCount =>
+      _bookingsRaw.where((b) => b['status'] == 'approved').length;
+  int get _rejectedCount =>
+      _bookingsRaw.where((b) => b['status'] == 'rejected').length;
+  int get _cancelledCount =>
+      _bookingsRaw.where((b) => b['status'] == 'cancelled').length;
 
   // Actions
   void _approveBooking(Map<String, dynamic> b) {
     AwesomeDialog(
-      context: context, dialogType: DialogType.question,
-      title: 'Approve Booking', desc: 'Approve booking for Room ${b['room_number'] ?? b['roomNumber'] ?? '—'}?',
-      btnOkText: 'Approve', btnCancelText: 'Cancel',
+      context: context,
+      dialogType: DialogType.question,
+      title: 'Approve Booking',
+      desc:
+          'Approve booking for Room ${b['room_number'] ?? b['roomNumber'] ?? '—'}?',
+      btnOkText: 'Approve',
+      btnCancelText: 'Cancel',
       btnOkOnPress: () async {
         try {
-          await ApiClient.put('${ApiConfig.bookings}/${b['_id'] ?? b['id']}/status', body: {'status': 'approved'});
+          await ApiClient.put(
+            '${ApiConfig.bookings}/${b['_id'] ?? b['id']}/status',
+            body: {'status': 'approved'},
+          );
           Fluttertoast.showToast(
-            msg: '${b['full_name'] ?? 'Student'} · Room ${b['room_number'] ?? b['roomNumber'] ?? '—'} booking approved',
+            msg:
+                '${b['full_name'] ?? 'Student'} · Room ${b['room_number'] ?? b['roomNumber'] ?? '—'} booking approved',
             backgroundColor: Colors.green,
           );
           _fetchBookings();
-        } catch (e) { _showError(e); }
+        } catch (e) {
+          _showError(e);
+        }
       },
       btnCancelOnPress: () {},
     ).show();
@@ -193,17 +231,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _rejectBooking(Map<String, dynamic> b) {
     final reasonController = TextEditingController();
     AwesomeDialog(
-      context: context, dialogType: DialogType.warning,
-      title: 'Reject Booking', desc: 'Provide a reason for rejection:',
+      context: context,
+      dialogType: DialogType.warning,
+      title: 'Reject Booking',
+      desc: 'Provide a reason for rejection:',
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: TextField(controller: reasonController, decoration: const InputDecoration(hintText: 'Reason...')),
+        child: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(hintText: 'Reason...'),
+        ),
       ),
-      btnOkText: 'Reject', btnOkColor: Colors.red, btnCancelText: 'Cancel',
+      btnOkText: 'Reject',
+      btnOkColor: Colors.red,
+      btnCancelText: 'Cancel',
       btnOkOnPress: () async {
         final reason = reasonController.text.trim();
         if (reason.length < 5) {
-          Fluttertoast.showToast(msg: 'Enter a rejection reason with at least 5 characters');
+          Fluttertoast.showToast(
+            msg: 'Enter a rejection reason with at least 5 characters',
+          );
           return;
         }
         try {
@@ -212,11 +259,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             body: {'status': 'rejected', 'reason': reason},
           );
           Fluttertoast.showToast(
-            msg: '${b['full_name'] ?? 'Student'} · Room ${b['room_number'] ?? b['roomNumber'] ?? '—'} booking rejected',
+            msg:
+                '${b['full_name'] ?? 'Student'} · Room ${b['room_number'] ?? b['roomNumber'] ?? '—'} booking rejected',
             backgroundColor: Colors.red,
           );
           _fetchBookings();
-        } catch (e) { _showError(e); }
+        } catch (e) {
+          _showError(e);
+        }
       },
       btnCancelOnPress: () {},
     ).show();
@@ -225,19 +275,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _suspendBooking(Map<String, dynamic> b) {
     final reasonController = TextEditingController();
     AwesomeDialog(
-      context: context, dialogType: DialogType.warning,
+      context: context,
+      dialogType: DialogType.warning,
       title: 'Suspend Booking',
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: TextField(controller: reasonController, decoration: const InputDecoration(hintText: 'Reason (optional)...')),
+        child: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(hintText: 'Reason (optional)...'),
+        ),
       ),
-      btnOkText: 'Suspend', btnOkColor: Colors.amber, btnCancelText: 'Cancel',
+      btnOkText: 'Suspend',
+      btnOkColor: Colors.amber,
+      btnCancelText: 'Cancel',
       btnOkOnPress: () async {
         try {
-          await ApiClient.put('${ApiConfig.bookings}/${b['_id'] ?? b['id']}/suspend', body: {'suspended': true, 'reason': reasonController.text});
-          Fluttertoast.showToast(msg: 'Booking suspended', backgroundColor: Colors.amber);
+          await ApiClient.put(
+            '${ApiConfig.bookings}/${b['_id'] ?? b['id']}/suspend',
+            body: {'suspended': true, 'reason': reasonController.text},
+          );
+          Fluttertoast.showToast(
+            msg: 'Booking suspended',
+            backgroundColor: Colors.amber,
+          );
           _fetchBookings();
-        } catch (e) { _showError(e); }
+        } catch (e) {
+          _showError(e);
+        }
       },
       btnCancelOnPress: () {},
     ).show();
@@ -245,24 +309,47 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   void _unsuspendBooking(Map<String, dynamic> b) async {
     try {
-      await ApiClient.put('${ApiConfig.bookings}/${b['_id'] ?? b['id']}/suspend', body: {'suspended': false});
-      Fluttertoast.showToast(msg: 'Booking unsuspended', backgroundColor: Colors.blue);
+      await ApiClient.put(
+        '${ApiConfig.bookings}/${b['_id'] ?? b['id']}/suspend',
+        body: {'suspended': false},
+      );
+      Fluttertoast.showToast(
+        msg: 'Booking unsuspended',
+        backgroundColor: Colors.blue,
+      );
       _fetchBookings();
-    } catch (e) { _showError(e); }
+    } catch (e) {
+      _showError(e);
+    }
   }
 
   void _deleteRoom(Room room) {
     AwesomeDialog(
-      context: context, dialogType: DialogType.warning,
-      title: 'Delete Room', desc: 'Delete room ${room.roomNumber}?',
-      btnOkText: 'Delete', btnOkColor: Colors.red, btnCancelText: 'Cancel',
+      context: context,
+      dialogType: DialogType.warning,
+      title: 'Delete Room',
+      desc: 'Delete room ${room.roomNumber}?',
+      btnOkText: 'Delete',
+      btnOkColor: Colors.red,
+      btnCancelText: 'Cancel',
       btnOkOnPress: () async {
         try {
           await ApiClient.delete('${ApiConfig.rooms}${room.id}');
-          Fluttertoast.showToast(msg: 'Room deleted', backgroundColor: Colors.green);
+          Fluttertoast.showToast(
+            msg: 'Room deleted',
+            backgroundColor: Colors.green,
+          );
           _fetchRooms();
         } catch (e) {
-          AwesomeDialog(context: context, dialogType: DialogType.error, title: 'Error', desc: e.toString().contains('active') ? 'Cannot delete room with active bookings' : e.toString().replaceFirst('Exception: ', ''), btnOkOnPress: () {}).show();
+          AwesomeDialog(
+            context: context,
+            dialogType: DialogType.error,
+            title: 'Error',
+            desc: e.toString().contains('active')
+                ? 'Cannot delete room with active bookings'
+                : e.toString().replaceFirst('Exception: ', ''),
+            btnOkOnPress: () {},
+          ).show();
         }
       },
       btnCancelOnPress: () {},
@@ -272,140 +359,250 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _showRoomForm({Room? room}) {
     final numController = TextEditingController(text: room?.roomNumber ?? '');
     final campusController = TextEditingController(text: room?.campus ?? '');
-    final capacityController = TextEditingController(text: room?.capacity?.toString() ?? '4');
-    final priceController = TextEditingController(text: room?.price?.toString() ?? '30000');
+    final capacityController = TextEditingController(
+      text: room?.capacity?.toString() ?? '4',
+    );
+    final priceController = TextEditingController(
+      text: room?.price?.toString() ?? '30000',
+    );
     String hostel = room?.hostel ?? 'Boys';
     String roomType = room?.roomType ?? 'quad';
     String status = room?.status ?? 'available';
     bool submitting = false;
 
     showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) {
-        return Padding(
-          padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(room == null ? 'Add Room' : 'Edit Room', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                CustomTextField(label: 'Room Number', controller: numController),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(value: hostel, decoration: const InputDecoration(labelText: 'Hostel'), items: ['Boys', 'Girls'].map((s) => DropdownMenuItem(value: s, child: Text(Helpers.formatHostelName(s)))).toList(), onChanged: (v) => hostel = v!),
-                const SizedBox(height: 12),
-                CustomTextField(label: 'Campus', controller: campusController),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(value: roomType, decoration: const InputDecoration(labelText: 'Room Type'), items: ['single', 'double', 'quad'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => roomType = v!),
-                const SizedBox(height: 12),
-                CustomTextField(label: 'Capacity', controller: capacityController, keyboardType: TextInputType.number),
-                const SizedBox(height: 12),
-                CustomTextField(label: 'Price', controller: priceController, keyboardType: TextInputType.number),
-                if (room != null) ...[
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(value: status, decoration: const InputDecoration(labelText: 'Status'), items: ['available', 'occupied', 'maintenance'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => status = v!),
-                ],
-                const SizedBox(height: 16),
-                CustomButton(
-                  label: room == null ? 'Add Room' : 'Update Room',
-                  isLoading: submitting,
-                  onPressed: submitting ? null : () async {
-                    setSheetState(() { submitting = true; });
-                    final body = {
-                      // Server expects snake_case keys
-                      'room_number': numController.text.trim(),
-                      'hostel': hostel,
-                      'campus': campusController.text.trim(),
-                      'room_type': roomType,
-                      'capacity': int.tryParse(capacityController.text) ?? 4,
-                      'price': double.tryParse(priceController.text) ?? 30000,
-                      'status': status,
-                    };
-                    try {
-                      if (room == null) {
-                        await ApiClient.post(ApiConfig.rooms, body: body);
-                      } else {
-                        await ApiClient.put('${ApiConfig.rooms}${room.id}', body: body);
-                      }
-                      Navigator.pop(ctx);
-                      Fluttertoast.showToast(msg: room == null ? 'Room added' : 'Room updated', backgroundColor: Colors.green);
-                      _fetchRooms();
-                    } catch (e) {
-                      setSheetState(() { submitting = false; });
-                      AwesomeDialog(context: context, dialogType: DialogType.error, title: 'Error', desc: e.toString().replaceFirst('Exception: ', ''), btnOkOnPress: () {}).show();
-                    }
-                  },
-                ),
-              ],
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
-          ),
-        );
-      }),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    room == null ? 'Add Room' : 'Edit Room',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  CustomTextField(
+                    label: 'Room Number',
+                    controller: numController,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: hostel,
+                    decoration: const InputDecoration(labelText: 'Hostel'),
+                    items: ['Boys', 'Girls']
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s,
+                            child: Text(Helpers.formatHostelName(s)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => hostel = v!,
+                  ),
+                  const SizedBox(height: 12),
+                  CustomTextField(
+                    label: 'Campus',
+                    controller: campusController,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: roomType,
+                    decoration: const InputDecoration(labelText: 'Room Type'),
+                    items: ['single', 'double', 'quad']
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) => roomType = v!,
+                  ),
+                  const SizedBox(height: 12),
+                  CustomTextField(
+                    label: 'Capacity',
+                    controller: capacityController,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 12),
+                  CustomTextField(
+                    label: 'Price',
+                    controller: priceController,
+                    keyboardType: TextInputType.number,
+                  ),
+                  if (room != null) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: status,
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      items: ['available', 'occupied', 'maintenance']
+                          .map(
+                            (s) => DropdownMenuItem(value: s, child: Text(s)),
+                          )
+                          .toList(),
+                      onChanged: (v) => status = v!,
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  CustomButton(
+                    label: room == null ? 'Add Room' : 'Update Room',
+                    isLoading: submitting,
+                    onPressed: submitting
+                        ? null
+                        : () async {
+                            setSheetState(() {
+                              submitting = true;
+                            });
+                            final body = {
+                              // Server expects snake_case keys
+                              'room_number': numController.text.trim(),
+                              'hostel': hostel,
+                              'campus': campusController.text.trim(),
+                              'room_type': roomType,
+                              'capacity':
+                                  int.tryParse(capacityController.text) ?? 4,
+                              'price':
+                                  double.tryParse(priceController.text) ??
+                                  30000,
+                              'status': status,
+                            };
+                            try {
+                              if (room == null) {
+                                await ApiClient.post(
+                                  ApiConfig.rooms,
+                                  body: body,
+                                );
+                              } else {
+                                await ApiClient.put(
+                                  '${ApiConfig.rooms}${room.id}',
+                                  body: body,
+                                );
+                              }
+                              Navigator.pop(ctx);
+                              Fluttertoast.showToast(
+                                msg: room == null
+                                    ? 'Room added'
+                                    : 'Room updated',
+                                backgroundColor: Colors.green,
+                              );
+                              _fetchRooms();
+                            } catch (e) {
+                              setSheetState(() {
+                                submitting = false;
+                              });
+                              AwesomeDialog(
+                                context: context,
+                                dialogType: DialogType.error,
+                                title: 'Error',
+                                desc: e.toString().replaceFirst(
+                                  'Exception: ',
+                                  '',
+                                ),
+                                btnOkOnPress: () {},
+                              ).show();
+                            }
+                          },
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  void _confirmPayment(Map<String, dynamic> p) {
-    AwesomeDialog(
-      context: context, dialogType: DialogType.question,
-      title: 'Confirm Payment', desc: 'Confirm payment of KES ${Helpers.formatAmount(p['amount'] ?? 0)}?',
-      btnOkText: 'Confirm', btnCancelText: 'Cancel',
-      btnOkOnPress: () async {
-        try {
-          await ApiClient.patch(ApiConfig.confirmPayment(p['_id'] ?? p['id']));
-          Fluttertoast.showToast(msg: 'Payment confirmed', backgroundColor: Colors.green);
-          _fetchPayments();
-        } catch (e) { _showError(e); }
-      },
-      btnCancelOnPress: () {},
-    ).show();
-  }
-
   Future<void> _postNotice() async {
-    if (_noticeTitleController.text.trim().isEmpty || _noticeMessageController.text.trim().isEmpty) return;
-    setState(() { _postingNotice = true; });
+    if (_noticeTitleController.text.trim().isEmpty ||
+        _noticeMessageController.text.trim().isEmpty)
+      return;
+    setState(() {
+      _postingNotice = true;
+    });
     try {
       final auth = context.read<AuthProvider>();
-      await ApiClient.post(ApiConfig.notices, body: {
-        'title': _noticeTitleController.text.trim(),
-        'message': _noticeMessageController.text.trim(),
-        'createdBy': auth.user?.id,
-      });
+      await ApiClient.post(
+        ApiConfig.notices,
+        body: {
+          'title': _noticeTitleController.text.trim(),
+          'message': _noticeMessageController.text.trim(),
+          'createdBy': auth.user?.id,
+        },
+      );
       _noticeTitleController.clear();
       _noticeMessageController.clear();
-      Fluttertoast.showToast(msg: 'Notice posted', backgroundColor: Colors.green);
+      Fluttertoast.showToast(
+        msg: 'Notice posted',
+        backgroundColor: Colors.green,
+      );
       _fetchNotices();
-    } catch (e) { _showError(e); }
-    setState(() { _postingNotice = false; });
+    } catch (e) {
+      _showError(e);
+    }
+    setState(() {
+      _postingNotice = false;
+    });
   }
 
   void _deleteNotice(Notice notice) {
     AwesomeDialog(
-      context: context, dialogType: DialogType.warning,
-      title: 'Delete Notice', desc: 'Delete "${notice.title}"?',
-      btnOkText: 'Delete', btnOkColor: Colors.red, btnCancelText: 'Cancel',
+      context: context,
+      dialogType: DialogType.warning,
+      title: 'Delete Notice',
+      desc: 'Delete "${notice.title}"?',
+      btnOkText: 'Delete',
+      btnOkColor: Colors.red,
+      btnCancelText: 'Cancel',
       btnOkOnPress: () async {
         try {
           await ApiClient.delete('${ApiConfig.notices}/${notice.id}');
-          Fluttertoast.showToast(msg: 'Notice deleted', backgroundColor: Colors.green);
+          Fluttertoast.showToast(
+            msg: 'Notice deleted',
+            backgroundColor: Colors.green,
+          );
           _fetchNotices();
-        } catch (e) { _showError(e); }
+        } catch (e) {
+          _showError(e);
+        }
       },
       btnCancelOnPress: () {},
     ).show();
   }
 
   void _showError(Object e) {
-    AwesomeDialog(context: context, dialogType: DialogType.error, title: 'Error', desc: e.toString().replaceFirst('Exception: ', ''), btnOkOnPress: () {}).show();
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.error,
+      title: 'Error',
+      desc: e.toString().replaceFirst('Exception: ', ''),
+      btnOkOnPress: () {},
+    ).show();
   }
 
   void _showLogoutDialog() {
     final auth = context.read<AuthProvider>();
     AwesomeDialog(
-      context: context, dialogType: DialogType.info,
-      title: 'Logout', desc: 'Are you sure you want to logout?',
-      btnOkText: 'Logout', btnCancelText: 'Stay',
-      btnOkOnPress: () async { await auth.logout(); if (mounted) context.go('/login'); },
+      context: context,
+      dialogType: DialogType.info,
+      title: 'Logout',
+      desc: 'Are you sure you want to logout?',
+      btnOkText: 'Logout',
+      btnCancelText: 'Stay',
+      btnOkOnPress: () async {
+        await auth.logout();
+        if (mounted) context.go('/login');
+      },
       btnCancelOnPress: () {},
     ).show();
   }
@@ -419,11 +616,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           title: const Text('Admin Dashboard'),
           actions: [
             IconButton(
+              icon: const Icon(Icons.tune),
+              tooltip: 'Hostel operations',
+              onPressed: () => context.push('/operations-management'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.help_outline),
+              tooltip: 'Help',
+              onPressed: () => context.push('/help'),
+            ),
+            IconButton(
               icon: const Icon(Icons.person),
               tooltip: 'Profile',
               onPressed: () => context.go('/profile'),
             ),
-            IconButton(icon: const Icon(Icons.logout), onPressed: _showLogoutDialog),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: _showLogoutDialog,
+            ),
           ],
           bottom: const TabBar(
             isScrollable: true,
@@ -435,13 +645,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ],
           ),
         ),
-        floatingActionButton: Builder(builder: (ctx) {
-          return FloatingActionButton(
-            backgroundColor: AppTheme.primary,
-            child: const Icon(Icons.add),
-            onPressed: () => _showRoomForm(),
-          );
-        }),
+        floatingActionButton: Builder(
+          builder: (ctx) {
+            return FloatingActionButton(
+              backgroundColor: AppTheme.primary,
+              child: const Icon(Icons.add),
+              onPressed: () => _showRoomForm(),
+            );
+          },
+        ),
         body: _loading
             ? const LoadingSpinner()
             : Column(
@@ -453,10 +665,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.all(12),
                       children: [
-                        StatCard(icon: Icons.hotel, label: 'Total Rooms', value: '${_rooms.length}', backgroundColor: AppTheme.primary),
-                        StatCard(icon: Icons.king_bed, label: 'Total Beds', value: '$_totalBeds', backgroundColor: Colors.purple),
-                        StatCard(icon: Icons.people, label: 'Beds Taken', value: '$_bedsTaken', backgroundColor: Colors.red),
-                        StatCard(icon: Icons.check_circle, label: 'Beds Free', value: '${(_totalBeds - _bedsTaken).clamp(0, _totalBeds)}', backgroundColor: Colors.green),
+                        StatCard(
+                          icon: Icons.hotel,
+                          label: 'Total Rooms',
+                          value: '${_rooms.length}',
+                          backgroundColor: AppTheme.primary,
+                        ),
+                        StatCard(
+                          icon: Icons.king_bed,
+                          label: 'Total Beds',
+                          value: '$_totalBeds',
+                          backgroundColor: Colors.purple,
+                        ),
+                        StatCard(
+                          icon: Icons.people,
+                          label: 'Beds Taken',
+                          value: '$_bedsTaken',
+                          backgroundColor: Colors.red,
+                        ),
+                        StatCard(
+                          icon: Icons.check_circle,
+                          label: 'Beds Free',
+                          value:
+                              '${(_totalBeds - _bedsTaken).clamp(0, _totalBeds)}',
+                          backgroundColor: Colors.green,
+                        ),
                       ],
                     ),
                   ),
@@ -467,16 +700,62 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: PieChart(PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 24,
-                              sections: [
-                                if (_pendingCount > 0) PieChartSectionData(value: _pendingCount.toDouble(), color: Colors.orange, title: '$_pendingCount', radius: 30, titleStyle: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                                if (_approvedCount > 0) PieChartSectionData(value: _approvedCount.toDouble(), color: Colors.green, title: '$_approvedCount', radius: 30, titleStyle: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                                if (_rejectedCount > 0) PieChartSectionData(value: _rejectedCount.toDouble(), color: Colors.red, title: '$_rejectedCount', radius: 30, titleStyle: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                                if (_cancelledCount > 0) PieChartSectionData(value: _cancelledCount.toDouble(), color: Colors.grey, title: '$_cancelledCount', radius: 30, titleStyle: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                              ],
-                            )),
+                            child: PieChart(
+                              PieChartData(
+                                sectionsSpace: 2,
+                                centerSpaceRadius: 24,
+                                sections: [
+                                  if (_pendingCount > 0)
+                                    PieChartSectionData(
+                                      value: _pendingCount.toDouble(),
+                                      color: Colors.orange,
+                                      title: '$_pendingCount',
+                                      radius: 30,
+                                      titleStyle: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  if (_approvedCount > 0)
+                                    PieChartSectionData(
+                                      value: _approvedCount.toDouble(),
+                                      color: Colors.green,
+                                      title: '$_approvedCount',
+                                      radius: 30,
+                                      titleStyle: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  if (_rejectedCount > 0)
+                                    PieChartSectionData(
+                                      value: _rejectedCount.toDouble(),
+                                      color: Colors.red,
+                                      title: '$_rejectedCount',
+                                      radius: 30,
+                                      titleStyle: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  if (_cancelledCount > 0)
+                                    PieChartSectionData(
+                                      value: _cancelledCount.toDouble(),
+                                      color: Colors.grey,
+                                      title: '$_cancelledCount',
+                                      radius: 30,
+                                      titleStyle: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
                           Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -495,7 +774,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // Tabs
                   Expanded(
                     child: TabBarView(
-                      children: [_bookingsTab(), _roomsTab(), _noticesTab(), _paymentsTab()],
+                      children: [
+                        _bookingsTab(),
+                        _roomsTab(),
+                        _noticesTab(),
+                        _paymentsTab(),
+                      ],
                     ),
                   ),
                 ],
@@ -507,7 +791,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _legend(Color color, String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(children: [Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 6), Text(label, style: const TextStyle(fontSize: 11))]),
+      child: Row(
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 11)),
+        ],
+      ),
     );
   }
 
@@ -520,9 +814,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Row(
               children: [
-                Expanded(child: TextField(decoration: const InputDecoration(hintText: 'Search...', prefixIcon: Icon(Icons.search), isDense: true), onChanged: (v) { _bookingSearch = v; _filterBookings(); })),
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search...',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                    ),
+                    onChanged: (v) {
+                      _bookingSearch = v;
+                      _filterBookings();
+                    },
+                  ),
+                ),
                 const SizedBox(width: 8),
-                DropdownButton<String>(value: _bookingStatusFilter, items: ['All', 'Pending', 'Approved', 'Rejected', 'Cancelled'].map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 13)))).toList(), onChanged: (v) { _bookingStatusFilter = v!; _filterBookings(); }),
+                DropdownButton<String>(
+                  value: _bookingStatusFilter,
+                  items: ['All', 'Pending', 'Approved', 'Rejected', 'Cancelled']
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s, style: const TextStyle(fontSize: 13)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    _bookingStatusFilter = v!;
+                    _filterBookings();
+                  },
+                ),
               ],
             ),
           ),
@@ -556,7 +876,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: TextField(decoration: const InputDecoration(hintText: 'Search rooms...', prefixIcon: Icon(Icons.search), isDense: true), onChanged: (v) { _roomSearch = v; _filterRooms(); }),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search rooms...',
+                prefixIcon: Icon(Icons.search),
+                isDense: true,
+              ),
+              onChanged: (v) {
+                _roomSearch = v;
+                _filterRooms();
+              },
+            ),
           ),
           Expanded(
             child: ListView.builder(
@@ -585,33 +915,61 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  const Text('Post New Notice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Text(
+                    'Post New Notice',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                   const SizedBox(height: 12),
-                  CustomTextField(label: 'Title', controller: _noticeTitleController),
+                  CustomTextField(
+                    label: 'Title',
+                    controller: _noticeTitleController,
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: _noticeMessageController, maxLines: 4, decoration: const InputDecoration(labelText: 'Message', border: OutlineInputBorder())),
+                  TextField(
+                    controller: _noticeMessageController,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Message',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  CustomButton(label: 'Post Notice', isLoading: _postingNotice, onPressed: _postingNotice ? null : _postNotice),
+                  CustomButton(
+                    label: 'Post Notice',
+                    isLoading: _postingNotice,
+                    onPressed: _postingNotice ? null : _postNotice,
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-          ..._notices.map((n) => Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              title: Text(n.title ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(n.message ?? ''),
-                  const SizedBox(height: 4),
-                  Text('${Helpers.formatDate(n.createdAt)} • ${n.authorName ?? 'Admin'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                ],
+          ..._notices.map(
+            (n) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(
+                  n.title ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(n.message ?? ''),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${Helpers.formatDate(n.createdAt)} • ${n.authorName ?? 'Admin'}',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                  onPressed: () => _deleteNotice(n),
+                ),
               ),
-              trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 20), onPressed: () => _deleteNotice(n)),
             ),
-          )),
+          ),
         ],
       ),
     );
@@ -626,9 +984,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: Row(
               children: [
-                Expanded(child: TextField(decoration: const InputDecoration(hintText: 'Search...', prefixIcon: Icon(Icons.search), isDense: true), onChanged: (v) { _paymentSearch = v; _filterPayments(); })),
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search...',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                    ),
+                    onChanged: (v) {
+                      _paymentSearch = v;
+                      _filterPayments();
+                    },
+                  ),
+                ),
                 const SizedBox(width: 8),
-                DropdownButton<String>(value: _paymentStatusFilter, items: ['All', 'Pending', 'Confirmed'].map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 13)))).toList(), onChanged: (v) { _paymentStatusFilter = v!; _filterPayments(); }),
+                DropdownButton<String>(
+                  value: _paymentStatusFilter,
+                  items: ['All', 'Pending', 'Confirmed']
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s, style: const TextStyle(fontSize: 13)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    _paymentStatusFilter = v!;
+                    _filterPayments();
+                  },
+                ),
               ],
             ),
           ),
@@ -642,7 +1026,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   payment: Payment.fromJson(p),
                   studentName: p['full_name'] ?? p['studentName'],
                   regNo: p['reg_no'] ?? p['regNo'],
-                  onConfirm: () => _confirmPayment(p),
                 );
               },
             ),

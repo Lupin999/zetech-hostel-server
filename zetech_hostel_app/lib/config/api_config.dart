@@ -1,25 +1,21 @@
 class ApiConfig {
-  static const String schoolPaybill = '303072';
-
-  // Set API_BASE_URL at build/run time instead of editing source. A physical
-  // phone must use the laptop's current LAN IP; production builds must provide
-  // the deployed HTTPS URL.
+  // Override API_BASE_URL at build/run time when testing against another server.
   // Examples:
   // flutter run --dart-define=API_BASE_URL=http://10.50.57.158:5000/api
-  // flutter build apk --release --dart-define=API_BASE_URL=https://host.example/api
+  // flutter build apk --release --dart-define=API_BASE_URL=https://api.example/api
   static const bool isProduction = bool.fromEnvironment('dart.vm.product');
   static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
   );
-  static const String _localDefaultBaseUrl = 'http://10.0.2.2:5000/api';
+  static const String _productionDefaultBaseUrl =
+      'https://zetech-hostel-api.onrender.com/api';
+
+  static const String _defaultBaseUrl = _productionDefaultBaseUrl;
 
   static String? get configurationError {
-    final configured = _configuredBaseUrl.trim();
-    if (configured.isEmpty && isProduction) {
-      return 'Set API_BASE_URL to the deployed server URL for production builds.';
-    }
-
-    final value = configured.isNotEmpty ? configured : _localDefaultBaseUrl;
+    final value = _configuredBaseUrl.trim().isNotEmpty
+        ? _configuredBaseUrl.trim()
+        : _defaultBaseUrl;
     final uri = Uri.tryParse(value);
     if (uri == null ||
         !uri.hasAuthority ||
@@ -36,7 +32,7 @@ class ApiConfig {
     final error = configurationError;
     if (error != null) throw StateError(error);
     final configured = _configuredBaseUrl.trim();
-    final value = configured.isNotEmpty ? configured : _localDefaultBaseUrl;
+    final value = configured.isNotEmpty ? configured : _defaultBaseUrl;
     return value.replaceFirst(RegExp(r'/+$'), '');
   }
 
@@ -68,15 +64,13 @@ class ApiConfig {
   static final String toggleBookings = '$baseUrl/bookings/toggle';
 
   // ─── PAYMENTS ─────────────────────────────────────────────────────────────
-  static final String payments = '$baseUrl/payments';
   static final String myPayments = '$baseUrl/payments/my';
   static final String allPayments = '$baseUrl/payments/all';
   static final String stkPush = '$baseUrl/payments/stk-push';
   static final String stkQuery = '$baseUrl/payments/stk-query';
-  static String paymentReceipt(dynamic id) => '$baseUrl/operations/payments/$id/receipt';
+  static String paymentReceipt(dynamic id) =>
+      '$baseUrl/operations/payments/$id/receipt';
   static final String deleteAccount = '$baseUrl/auth/account';
-  // Correct route: PATCH /payments/:id/confirm — use confirmPayment(id)
-  static String confirmPayment(dynamic id) => '$baseUrl/payments/$id/confirm';
 
   // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
   static final String notifications = '$baseUrl/notifications';

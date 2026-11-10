@@ -1,8 +1,6 @@
 class AppConstants {
   static const String roleStudent = 'student';
   static const String roleAdmin = 'admin';
-  static const String roleWarden = 'warden';
-  static const String roleAccounts = 'accounts';
 
   static const String statusPending = 'pending';
   static const String statusApproved = 'approved';
