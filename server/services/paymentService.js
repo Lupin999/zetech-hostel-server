@@ -41,10 +41,6 @@ const initiateStkPush = async (userId, phone, bookingId) => {
     const [existing] = await PaymentModel.getPaymentsByBookingId(bookingId);
     if (existing.find(p => p.status === 'confirmed')) return { error: 'Payment already confirmed', status: 400 };
 
-    if (existing.length) {
-        await PaymentModel.deletePendingByBookingId(bookingId);
-    }
-
     const reference = `ZH${bookingId}`;
 
     let mpesaRes;
@@ -60,6 +56,9 @@ const initiateStkPush = async (userId, phone, bookingId) => {
     }
 
     if (mpesaRes.ResponseCode === '0' && mpesaRes.CheckoutRequestID) {
+        if (existing.length) {
+            await PaymentModel.deletePendingByBookingId(bookingId);
+        }
         await PaymentModel.createPayment(bookingId, DEPOSIT_AMOUNT, 'mpesa', mpesaRes.CheckoutRequestID);
         return { message: 'STK push sent', amount: DEPOSIT_AMOUNT, checkoutRequestId: mpesaRes.CheckoutRequestID };
     }

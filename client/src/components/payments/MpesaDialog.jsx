@@ -14,6 +14,7 @@ export default function MpesaDialog({ open, onClose, booking, phone, setPhone, o
                     Room {formatRoomNumber(booking?.room_number)} · Total hostel fee: {booking ? formatCurrency(booking.price) : '—'} · Deposit due now: {formatCurrency(MIN_DEPOSIT)}
                 </Typography>
                 <TextField placeholder="Phone Number (07XXXXXXXX)" type="tel" required fullWidth
+                    autoFocus
                     value={phone} onChange={e => setPhone(e.target.value)}
                     helperText="A Safaricom M-Pesa prompt will be sent to this number."
                     sx={{ '& input': { color: 'text.primary' } }} />

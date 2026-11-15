@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 const BLUE = '#1a237e';
@@ -18,23 +18,6 @@ export default function SplashScreen({ onComplete }) {
     const [phase, setPhase] = useState(0);
     const bgCtrl = useAnimation();
     const waveCtrl = useAnimation();
-
-    const runSequence = useCallback(async () => {
-        // Phase 1: blue flood
-        await new Promise(r => setTimeout(r, 800));
-        setPhase(1);
-        waveCtrl.start({ x: '0%', transition: { duration: 0.6, ease: [0.33, 1, 0.68, 1] } });
-        bgCtrl.start({ opacity: 1, transition: { duration: 0.7 } });
-
-        // Phase 2: E bounce + subtitle
-        await new Promise(r => setTimeout(r, 800));
-        setPhase(2);
-
-        // Phase 3: exit
-        await new Promise(r => setTimeout(r, 1000));
-        setVisible(false);
-        setTimeout(onComplete, 500);
-    }, [onComplete, bgCtrl, waveCtrl]);
 
     useEffect(() => {
         let cancelled = false;

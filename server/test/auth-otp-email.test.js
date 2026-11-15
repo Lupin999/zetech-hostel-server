@@ -1,23 +1,33 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const nodemailer = require('nodemailer');
 const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
-const brevoEmailService = require('../services/brevoEmailService');
-const authService = require('../services/authService');
 
 const originalFindByPhone = UserModel.findByPhone;
 const originalInvalidateExisting = OtpModel.invalidateExisting;
 const originalCreateOtp = OtpModel.createOtp;
-const originalSendOtpEmail = brevoEmailService.sendOtpEmail;
+const originalCreateTransport = nodemailer.createTransport;
+let sendEmail;
+
+nodemailer.createTransport = () => ({
+    sendMail: (...args) => sendEmail(...args),
+});
+
+const authService = require('../services/authService');
 
 test.afterEach(() => {
     UserModel.findByPhone = originalFindByPhone;
     OtpModel.invalidateExisting = originalInvalidateExisting;
     OtpModel.createOtp = originalCreateOtp;
-    brevoEmailService.sendOtpEmail = originalSendOtpEmail;
+    sendEmail = async () => {};
 });
 
-const setup = (sendEmail) => {
+test.after(() => {
+    nodemailer.createTransport = originalCreateTransport;
+});
+
+const setup = (sendEmailHandler) => {
     const invalidations = [];
     let savedOtp;
     UserModel.findByPhone = async () => [[{
@@ -33,29 +43,28 @@ const setup = (sendEmail) => {
     OtpModel.createOtp = async (phone, code, expiresAt) => {
         savedOtp = { phone, code, expiresAt };
     };
-    brevoEmailService.sendOtpEmail = sendEmail;
+    sendEmail = sendEmailHandler;
     return { invalidations, getSavedOtp: () => savedOtp };
 };
 
-test('phone login OTP is sent through Brevo to the account email', async () => {
+test('phone login OTP is sent through Nodemailer to the account email', async () => {
     let sent;
     const state = setup(async (message) => { sent = message; });
 
     const result = await authService.sendOtp('+254712345678');
 
     assert.match(result.message, /st\*\*\*@example\.com/);
-    assert.deepEqual(sent, {
-        email: 'student@example.com',
-        fullName: 'Student',
-        code: state.getSavedOtp().code,
-    });
+    assert.equal(sent.to, 'student@example.com');
+    assert.equal(sent.subject, 'Your Zetech Hostel Login Code');
+    assert.match(sent.text, new RegExp(state.getSavedOtp().code));
+    assert.match(sent.html, new RegExp(state.getSavedOtp().code));
     assert.match(state.getSavedOtp().code, /^\d{6}$/);
     assert.equal(state.invalidations.length, 1);
 });
 
-test('failed Brevo OTP send invalidates the code and returns a service error', async () => {
+test('failed SMTP OTP send invalidates the code and returns a service error', async () => {
     const state = setup(async () => {
-        throw new Error('Brevo request failed');
+        throw new Error('SMTP request failed');
     });
 
     const result = await authService.sendOtp('+254712345678');
@@ -65,7 +74,7 @@ test('failed Brevo OTP send invalidates the code and returns a service error', a
     assert.equal(state.invalidations.length, 2);
 });
 
-test('Brevo timeout returns a clear retry message and invalidates the code', async () => {
+test('SMTP timeout returns a clear retry message and invalidates the code', async () => {
     const state = setup(async () => {
         const error = new Error('Request timed out');
         error.code = 'ECONNABORTED';

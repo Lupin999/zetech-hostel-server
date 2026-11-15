@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const brevoEmailService = require('./brevoEmailService');
 const pool = require('../config/db');
 const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
@@ -13,6 +12,13 @@ const { normalizeRole, normalizeStoredRole } = require('../utils/roles');
 const otpAttempts = new Map();
 const OTP_MAX_ATTEMPTS = 3;
 const OTP_LOCKOUT_MS = 15 * 60 * 1000;
+
+const escapeHtml = (value) => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 // Create transporter lazily so missing SMTP env vars don't crash the whole
 // server at startup — they only surface an error when an email is actually sent.
@@ -166,17 +172,27 @@ const sendOtp = async (phone) => {
     await OtpModel.invalidateExisting(normalizedPhone);
     await OtpModel.createOtp(normalizedPhone, code, expiresAt);
 
-    // Login OTP is sent through Brevo; password-reset mail still uses SMTP.
     const maskedEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
     try {
-        await brevoEmailService.sendOtpEmail({
-            email: user.email,
-            fullName: user.full_name,
-            code,
+        await getTransporter().sendMail({
+            from: `"Zetech Hostel" <${process.env.SMTP_EMAIL}>`,
+            to: user.email,
+            subject: 'Your Zetech Hostel Login Code',
+            html: `
+                <div style="font-family:Arial,sans-serif;max-width:400px;margin:0 auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px">
+                    <h2 style="color:#1a237e;text-align:center">Zetech Hostel</h2>
+                    <p>Hi <b>${escapeHtml(user.full_name)}</b>,</p>
+                    <p>Your login verification code is:</p>
+                    <div style="text-align:center;margin:20px 0">
+                        <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#1a237e">${escapeHtml(code)}</span>
+                    </div>
+                    <p style="color:#666;font-size:13px">This code expires in 5 minutes. Do not share it with anyone.</p>
+                </div>
+            `,
+            text: `Hi ${user.full_name}, your Zetech Hostel login code is ${code}. It expires in 5 minutes. Do not share it with anyone.`,
         });
     } catch (emailErr) {
-        logger.error('[EMAIL ERROR] Failed to send OTP email through Brevo', {
-            status: emailErr.response?.status,
+        logger.error('[EMAIL ERROR] Failed to send OTP email through SMTP', {
             code: emailErr.code,
         });
         try {
@@ -185,7 +201,7 @@ const sendOtp = async (phone) => {
             logger.error('[OTP ERROR] Failed to invalidate undelivered code');
         }
         return {
-            error: emailErr.code === 'ECONNABORTED'
+            error: ['ETIMEDOUT', 'ECONNABORTED'].includes(emailErr.code)
                 ? 'The login code email timed out. Please try again.'
                 : 'Could not send the login code email. Please try again later.',
             status: 503,

@@ -11,6 +11,7 @@ const originalSendNotification = notificationService.sendNotification;
 const originalMethods = {
     getApprovedBookingForPayment: paymentModel.getApprovedBookingForPayment,
     getPaymentsByBookingId: paymentModel.getPaymentsByBookingId,
+    deletePendingByBookingId: paymentModel.deletePendingByBookingId,
     createPayment: paymentModel.createPayment,
     recordAdminVerifiedPayment: paymentModel.recordAdminVerifiedPayment,
 };
@@ -29,6 +30,7 @@ const paymentService = require('../services/paymentService');
 test.afterEach(() => {
     paymentModel.getApprovedBookingForPayment = originalMethods.getApprovedBookingForPayment;
     paymentModel.getPaymentsByBookingId = originalMethods.getPaymentsByBookingId;
+    paymentModel.deletePendingByBookingId = originalMethods.deletePendingByBookingId;
     paymentModel.createPayment = originalMethods.createPayment;
     paymentModel.recordAdminVerifiedPayment = originalMethods.recordAdminVerifiedPayment;
     stkPushArguments = undefined;
@@ -75,6 +77,18 @@ test('STK provider failures are marked separately from payment-recording failure
         paymentService.initiateStkPush(1, '0712345678', 2),
         error => error.stage === 'mpesa-stk-push' && error.code === 'ECONNRESET'
     );
+});
+
+test('a failed replacement STK push keeps the existing pending checkout available', async () => {
+    let deleteCalled = false;
+    paymentModel.getApprovedBookingForPayment = async () => [[{ id: 2 }]];
+    paymentModel.getPaymentsByBookingId = async () => [[{ id: 10, status: 'pending' }]];
+    paymentModel.deletePendingByBookingId = async () => { deleteCalled = true; };
+    stkPushError = Object.assign(new Error('Safaricom unavailable'), { code: 'ECONNRESET' });
+
+    await assert.rejects(paymentService.initiateStkPush(1, '0712345678', 2));
+
+    assert.equal(deleteCalled, false);
 });
 
 test('manual transaction-code payment submission is not exposed', () => {

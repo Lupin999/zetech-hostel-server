@@ -37,6 +37,11 @@ export default function MyBookings() {
     const pollRef = useRef(null);
 
     const fetchData = () => { fetchMyBookings(); fetchMyPayments(); };
+    const stopPolling = () => {
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        setPolling(false);
+    };
 
     useEffect(() => { setPhone(user?.phone || ''); }, [user?.phone]);
     useEffect(() => { return () => { if (pollRef.current) clearInterval(pollRef.current); }; }, []);
@@ -121,10 +126,12 @@ export default function MyBookings() {
     const handleMpesaPay = async () => {
         if (submitting) return;
         if (!phone.trim()) return toast.error('Enter the phone number registered to your account');
+        stopPolling();
         setSubmitting(true);
         try {
             const stkRes = await initStkPush(phone, selectedBooking.id);
             const checkoutId = stkRes.checkoutRequestId;
+            if (!checkoutId) throw new Error('M-Pesa did not return a checkout request ID');
             setMpesaOpen(false);
             setPhone('');
 
@@ -138,27 +145,33 @@ export default function MyBookings() {
                 try {
                     const qRes = await queryStkStatus(checkoutId);
                     if (qRes.status === 'confirmed') {
-                        clearInterval(pollRef.current);
-                        setPolling(false);
+                        stopPolling();
                         fetchData();
                         Swal.fire({ icon: 'success', title: 'Payment Confirmed!', text: 'Your M-Pesa payment was successful. Welcome to Zetech Hostel!', confirmButtonColor: '#1a237e' });
+                        return;
                     } else if (qRes.status === 'failed') {
-                        clearInterval(pollRef.current);
-                        setPolling(false);
+                        stopPolling();
                         fetchData();
                         Swal.fire({ icon: 'error', title: 'Payment Failed', text: qRes.message || 'Payment was cancelled or timed out. You can try again.', confirmButtonColor: '#1a237e' });
+                        return;
                     }
-                } catch { /* keep polling */ }
+                } catch (err) {
+                    if (err.response) {
+                        stopPolling();
+                        fetchData();
+                        toast.error(err.response.data?.error || 'Could not verify this M-Pesa payment');
+                        return;
+                    }
+                }
                 if (attempts >= 24) {
-                    clearInterval(pollRef.current);
-                    setPolling(false);
+                    stopPolling();
                     fetchData();
                     toast('Payment verification timed out. Check notifications for updates.', { icon: '⏳' });
                 }
             }, 5000);
         } catch (err) {
             setMpesaOpen(false);
-            toast.error(err.response?.data?.error || 'Could not initiate payment');
+            toast.error(err.response?.data?.error || err.message || 'Could not initiate payment');
         } finally { setSubmitting(false); }
     };
 

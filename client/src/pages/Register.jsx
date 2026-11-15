@@ -9,13 +9,27 @@ import { COUNTRY_CODES } from '../utils/constants';
 import api from '../utils/api';
 import { formatHostelName } from '../utils/helpers';
 
-const inputSx = { mb: 2.5, '& input': { color: '#000' }, '& input::placeholder': { color: '#000', opacity: 0.7 } };
-const admissionGroups = Array.from({ length: 100 }, (_, index) => String(index).padStart(2, '0'));
+const inputSx = {
+    mb: 2.5,
+    '& .MuiInputBase-input': { color: '#000' },
+    '& .MuiInputBase-input::placeholder': { color: '#000', opacity: 0.7 },
+    '& .MuiSelect-select': { color: '#1f2937' },
+    '& .MuiInputLabel-root': { color: '#4b5563' },
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.23)' },
+    '& .MuiSvgIcon-root': { color: '#1a237e' },
+};
 const currentYear = new Date().getFullYear();
-const admissionYears = Array.from({ length: currentYear - 1979 }, (_, index) => String(currentYear + 1 - index));
+
+// Auto-format admission number as the user types: raw digits → XX'XXXX/YYYY
+const formatAdmissionNo = (raw) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 10);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 2)}'${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}'${digits.slice(2, 6)}/${digits.slice(6)}`;
+};
 
 export default function Register() {
-    const [form, setForm] = useState({ regGroup: '', regSequence: '', regYear: '', email: '', full_name: '', course: '', password: '', confirmPassword: '', gender: 'Male', phoneNumber: '' });
+    const [form, setForm] = useState({ admissionNo: '', email: '', full_name: '', course: '', password: '', confirmPassword: '', gender: 'Male', phoneNumber: '' });
     const [countryCode, setCountryCode] = useState('+254');
     const [errors, setErrors] = useState({});
     const [serverError, setServerError] = useState('');
@@ -36,9 +50,12 @@ export default function Register() {
     const validate = () => {
         const e = {};
         if (!form.course) e.course = 'Please select your programme';
-        if (!/^\d{1,2}$/.test(form.regGroup) || Number(form.regGroup) > 99) e.regGroup = 'Enter a number from 0 to 99';
-        if (!/^\d{1,4}$/.test(form.regSequence) || Number(form.regSequence) > 9999) e.regSequence = 'Enter a number from 0 to 9999';
-        if (!/^\d{4}$/.test(form.regYear)) e.regYear = 'Enter a 4-digit year';
+        const regDigits = form.admissionNo.replace(/\D/g, '');
+        if (regDigits.length < 10) e.admissionNo = 'Enter all 10 digits (e.g., 01\'0046/2024)';
+        else {
+            const year = Number(regDigits.slice(6, 10));
+            if (year < 2018 || year > currentYear + 1) e.admissionNo = `Year must be between 2018 and ${currentYear + 1}`;
+        }
         if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Valid email is required';
         if (!form.full_name.trim()) e.full_name = 'Full name is required';
         if (form.password.length < 6) e.password = 'Password must be at least 6 characters';
@@ -56,8 +73,8 @@ export default function Register() {
 
     const hostelPreference = form.gender === 'Female' ? 'Girls' : 'Boys';
     const selectedProgramme = programmes.find(programme => programme.name === form.course);
-    const registrationNumber = selectedProgramme && form.regGroup && form.regSequence && /^\d{4}$/.test(form.regYear)
-        ? `${selectedProgramme.code}-${form.regGroup.padStart(2, '0')}'${form.regSequence.padStart(4, '0')}/${form.regYear}`
+    const registrationNumber = selectedProgramme && form.admissionNo
+        ? `${selectedProgramme.code}-${form.admissionNo}`
         : '';
 
     const handleSubmit = async (e) => {
@@ -67,7 +84,7 @@ export default function Register() {
         setLoading(true);
         try {
             const phone = countryCode + form.phoneNumber.replace(/\D/g, '').replace(/^0+/, '');
-            const { phoneNumber: _phoneNumber, confirmPassword: _confirmPassword, regGroup: _regGroup, regSequence: _regSequence, regYear: _regYear, ...rest } = form;
+            const { phoneNumber: _phoneNumber, confirmPassword: _confirmPassword, admissionNo: _admissionNo, ...rest } = form;
             const user = await register({ ...rest, reg_no: registrationNumber, phone, gender: form.gender, hostel_preference: hostelPreference });
             toast.success('Registration successful! Opening your dashboard...');
             navigate(user.role === 'student' ? '/dashboard' : '/admin', { replace: true });
@@ -77,10 +94,10 @@ export default function Register() {
     };
 
     const update = (field) => (e) => {
-        const numericLimits = { regGroup: 2, regSequence: 4, regYear: 4 };
-        const val = field === 'phoneNumber' || numericLimits[field]
-            ? e.target.value.replace(/\D/g, '').slice(0, numericLimits[field] || 15)
-            : e.target.value;
+        let val;
+        if (field === 'admissionNo') val = formatAdmissionNo(e.target.value);
+        else if (field === 'phoneNumber') val = e.target.value.replace(/\D/g, '').slice(0, 15);
+        else val = e.target.value;
         setForm({ ...form, [field]: val });
         if (errors[field]) setErrors({ ...errors, [field]: '' });
     };
@@ -114,28 +131,28 @@ export default function Register() {
                                 </MenuItem>
                             ))}
                         </TextField>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1.2fr 1fr' }, gap: 1, mb: 0.5 }}>
-                            <TextField select label="Group" fullWidth sx={inputSx} value={form.regGroup}
-                                onChange={update('regGroup')} error={!!errors.regGroup} helperText={errors.regGroup || '00-99'}>
-                                {admissionGroups.map(group => <MenuItem key={group} value={group}>{group}</MenuItem>)}
-                            </TextField>
-                            <TextField select label="Admission year" fullWidth sx={{ ...inputSx, gridColumn: { sm: '3' } }} value={form.regYear}
-                                onChange={update('regYear')} error={!!errors.regYear} helperText={errors.regYear || 'Select year'}>
-                                {admissionYears.map(year => <MenuItem key={year} value={year}>{year}</MenuItem>)}
-                            </TextField>
-                            <TextField label="Student number" placeholder="0046" type="number"
-                                inputProps={{ inputMode: 'numeric', min: 0, max: 9999, step: 1 }}
-                                fullWidth sx={{ ...inputSx, gridColumn: { xs: '1 / -1', sm: '2' } }}
-                                value={form.regSequence} onChange={update('regSequence')}
-                                error={!!errors.regSequence} helperText={errors.regSequence || '0000-9999'} />
+                        <TextField
+                            label="Admission Number"
+                            placeholder="01'0046/2024"
+                            fullWidth
+                            sx={inputSx}
+                            value={form.admissionNo}
+                            onChange={update('admissionNo')}
+                            error={!!errors.admissionNo}
+                            helperText={errors.admissionNo || 'Type your group, student number & year — it formats automatically'}
+                            inputProps={{ inputMode: 'numeric' }}
+                        />
+                        <Box sx={{
+                            mt: -1, mb: 2.5, px: 2, py: 1.3, borderRadius: 2,
+                            backgroundColor: registrationNumber ? '#e8eaf6' : '#f5f5f5',
+                            border: registrationNumber ? '2px solid #3949ab' : '1px solid #ddd',
+                            color: registrationNumber ? '#1a237e' : '#999',
+                            fontWeight: 700, fontSize: '0.9rem',
+                            display: 'flex', alignItems: 'center', gap: 1,
+                        }}>
+                            <span style={{ fontSize: '1.1rem' }}>🎓</span>
+                            {registrationNumber || (selectedProgramme ? `${selectedProgramme.code}-01'0046/2024` : 'Select a programme first')}
                         </Box>
-                        <Typography variant="caption" sx={{ display: 'block', mt: -1.5, mb: 2, color: '#4b5563' }}>
-                            Example: BSE-01'0046/2024. Enter your own programme code, group, student number, and admission year.
-                            Format is checked here; this app is not connected to the university student registry.
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: -1.5, mb: 2.5, color: '#4b5563' }}>
-                            Admission number: {registrationNumber || (selectedProgramme ? `${selectedProgramme.code}-00'0000/YYYY` : 'Select a programme to see its code')}
-                        </Typography>
                         <Box sx={{ display: 'flex', gap: 1, mb: 2.5 }}>
                             <Select value={countryCode} onChange={e => setCountryCode(e.target.value)}
                                 sx={{ minWidth: 110, '& .MuiSelect-select': { color: '#000' } }}>
@@ -198,8 +215,8 @@ export default function Register() {
                             <MenuItem value="Male" sx={{ color: '#1f2937', '&.Mui-selected': { bgcolor: '#e8eaf6' } }}>Male</MenuItem>
                             <MenuItem value="Female" sx={{ color: '#1f2937', '&.Mui-selected': { bgcolor: '#e8eaf6' } }}>Female</MenuItem>
                         </TextField>
-                        <Box sx={{ mb: 2.5, px: 1.5, py: 1.2, borderRadius: 1, backgroundColor: '#f5f7ff', border: '1px solid #dfe3f5', color: '#1a237e', fontWeight: 600 }}>
-                            Hostel group: {formatHostelName(hostelPreference)}
+                        <Box sx={{ mb: 2.5, px: 2, py: 1.5, borderRadius: 2, backgroundColor: '#e8eaf6', border: '2px solid #3949ab', color: '#1a237e', fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <span style={{ fontSize: '1.3rem' }}>🏠</span> Hostel group: {formatHostelName(hostelPreference)}
                         </Box>
                         <Button type="submit" variant="contained" fullWidth size="large" disabled={loading} sx={{ mb: 2, py: 1.5 }}>
                             {loading ? <CircularProgress size={24} /> : 'Register'}
