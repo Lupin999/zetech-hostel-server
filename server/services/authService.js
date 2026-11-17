@@ -1,10 +1,10 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 const pool = require('../config/db');
 const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
 const logger = require('../utils/logger');
+const { sendEmail } = require('../utils/email');
 const { normalizePhone } = require('../utils/phone');
 const { normalizeRole, normalizeStoredRole } = require('../utils/roles');
 
@@ -20,14 +20,7 @@ const escapeHtml = (value) => String(value)
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-// Create transporter lazily so missing SMTP env vars don't crash the whole
-// server at startup — they only surface an error when an email is actually sent.
-let _transporter = null;
-const getTransporter = () => {
-    if (!_transporter) {
-        _transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_PASSWORD },
+
         });
     }
     return _transporter;
@@ -174,8 +167,7 @@ const sendOtp = async (phone) => {
 
     const maskedEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
     try {
-        await getTransporter().sendMail({
-            from: `"Zetech Hostel" <${process.env.SMTP_EMAIL}>`,
+        await sendEmail({
             to: user.email,
             subject: 'Your Zetech Hostel Login Code',
             html: `
@@ -301,8 +293,7 @@ const forgotPassword = async (email) => {
     await OtpModel.createOtp(email, code, expiresAt);
 
     try {
-        await getTransporter().sendMail({
-            from: `"Zetech Hostel" <${process.env.SMTP_EMAIL}>`,
+        await sendEmail({
             to: email,
             subject: 'Password Reset Code - Zetech Hostel',
             html: `
@@ -315,7 +306,7 @@ const forgotPassword = async (email) => {
                     </div>
                     <p style="color:#666;font-size:13px">This code expires in 10 minutes. If you didn't request this, ignore this email.</p>
                 </div>
-            `
+            `,
         });
     } catch (emailErr) {
         logger.error('[EMAIL ERROR] Failed to send password reset email', {
