@@ -21,11 +21,6 @@ const escapeHtml = (value) => String(value)
     .replace(/'/g, '&#39;');
 
 
-        });
-    }
-    return _transporter;
-};
-
 const formatUser = (u) => ({
     id: u.id, reg_no: u.reg_no, email: u.email, phone: u.phone,
     full_name: u.full_name, role: normalizeRole(u.role), campus: u.campus,
