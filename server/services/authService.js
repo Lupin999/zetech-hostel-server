@@ -302,6 +302,7 @@ const forgotPassword = async (email) => {
                     <p style="color:#666;font-size:13px">This code expires in 10 minutes. If you didn't request this, ignore this email.</p>
                 </div>
             `,
+            text: `Hi ${user.full_name}, your Zetech Hostel password reset code is ${code}. It expires in 10 minutes. If you did not request this, ignore this email.`,
         });
     } catch (emailErr) {
         logger.error('[EMAIL ERROR] Failed to send password reset email', {

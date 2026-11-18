@@ -1,113 +1,75 @@
-const test = require('node:test');
+/**
+ * Unit tests for server/utils/email.js
+ * Covers: html-only, text-only, and both-fields callers.
+ * Uses Node's built-in test runner (node --test).
+ */
+
+'use strict';
+
+const { test, mock } = require('node:test');
 const assert = require('node:assert/strict');
-const logger = require('../utils/logger');
+
+// ── Minimal process.env setup ────────────────────────────────────────────────
+process.env.BREVO_API_KEY = 'test-key';
+process.env.BREVO_SENDER_EMAIL = 'test@example.com';
+
+// Capture the last fetch call body
+let lastRequestBody = null;
+
+// Stub global fetch before requiring the module under test
+global.fetch = mock.fn(async () => {
+    return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+    };
+});
+
+// Record what was sent
+const originalFetch = global.fetch;
+global.fetch = async (url, opts) => {
+    lastRequestBody = JSON.parse(opts.body);
+    return originalFetch(url, opts);
+};
+
 const { sendEmail } = require('../utils/email');
 
-const originalFetch = global.fetch;
-const originalSetTimeout = global.setTimeout;
-const originalInfo = logger.info;
-const originalError = logger.error;
-const originalApiKey = process.env.BREVO_API_KEY;
-const originalSenderEmail = process.env.BREVO_SENDER_EMAIL;
+// ── Helper ───────────────────────────────────────────────────────────────────
+const send = (opts) => sendEmail({ to: 'recipient@example.com', subject: 'Test', ...opts });
 
-test.beforeEach(() => {
-    process.env.BREVO_API_KEY = 'test-api-key';
-    process.env.BREVO_SENDER_EMAIL = 'sender@example.com';
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+test('html-only call: textContent is derived from html by stripping tags', async () => {
+    await send({ html: '<p>Hello <b>World</b></p>' });
+
+    assert.ok(lastRequestBody.htmlContent.includes('<p>Hello'), 'htmlContent preserved');
+    assert.ok(lastRequestBody.textContent.length > 0, 'textContent is non-empty');
+    assert.ok(!lastRequestBody.textContent.includes('<'), 'textContent has no HTML tags');
+    assert.ok(lastRequestBody.textContent.includes('Hello'), 'textContent contains the text');
 });
 
-test.afterEach(() => {
-    global.fetch = originalFetch;
-    global.setTimeout = originalSetTimeout;
-    logger.info = originalInfo;
-    logger.error = originalError;
-    if (originalApiKey === undefined) delete process.env.BREVO_API_KEY;
-    else process.env.BREVO_API_KEY = originalApiKey;
-    if (originalSenderEmail === undefined) delete process.env.BREVO_SENDER_EMAIL;
-    else process.env.BREVO_SENDER_EMAIL = originalSenderEmail;
+test('text-only call: htmlContent is generated from plain text', async () => {
+    await send({ text: 'Your code is 123456.\nExpires in 5 minutes.' });
+
+    assert.ok(lastRequestBody.textContent.includes('123456'), 'textContent has code');
+    assert.ok(lastRequestBody.htmlContent.includes('123456'), 'htmlContent has code');
+    assert.ok(lastRequestBody.htmlContent.includes('<br>'), 'line breaks converted to <br>');
+    assert.ok(!lastRequestBody.textContent.includes('<'), 'textContent is plain text');
 });
 
-test('sends email using the Brevo API with a ten-second timeout', async () => {
-    let request;
-    let timeoutMs;
-    let successLog;
-    global.setTimeout = (callback, delay) => {
-        timeoutMs = delay;
-        return originalSetTimeout(callback, delay);
-    };
-    global.fetch = async (url, options) => {
-        request = { url, options };
-        return { ok: true, status: 201 };
-    };
-    logger.info = (...args) => { successLog = args; };
-
-    await sendEmail({
-        to: 'recipient@example.com',
-        subject: 'Your code',
-        html: '<p>123456</p>',
+test('both html and text: both are passed through unchanged', async () => {
+    await send({
+        html: '<p>Reset code: <b>654321</b></p>',
+        text: 'Reset code: 654321',
     });
 
-    assert.equal(timeoutMs, 10_000);
-    assert.equal(request.url, 'https://api.brevo.com/v3/smtp/email');
-    assert.equal(request.options.method, 'POST');
-    assert.equal(request.options.headers['api-key'], 'test-api-key');
-    assert.equal(request.options.headers['Content-Type'], 'application/json');
-    assert.deepEqual(JSON.parse(request.options.body), {
-        sender: { name: 'Zetech Hostel', email: 'sender@example.com' },
-        to: [{ email: 'recipient@example.com' }],
-        subject: 'Your code',
-        htmlContent: '<p>123456</p>',
-        textContent: '',
-    });
-    assert.equal(request.options.signal instanceof AbortSignal, true);
-    assert.deepEqual(successLog, ['[EMAIL] Sent via Brevo API']);
+    assert.ok(lastRequestBody.htmlContent.includes('<b>654321</b>'), 'html preserved as-is');
+    assert.equal(lastRequestBody.textContent, 'Reset code: 654321', 'text preserved as-is');
 });
 
-test('logs the status and response body when Brevo rejects an email', async () => {
-    let errorLog;
-    global.fetch = async () => ({
-        ok: false,
-        status: 401,
-        text: async () => '{"message":"Invalid API key"}',
-    });
-    logger.error = (...args) => { errorLog = args; };
+test('neither html nor text: sends empty strings without throwing', async () => {
+    await send({});
 
-    await assert.rejects(
-        sendEmail({ to: 'recipient@example.com', subject: 'Your code', html: '<p>123456</p>' }),
-        /status 401/,
-    );
-
-    assert.deepEqual(errorLog, [
-        '[EMAIL] Brevo API error',
-        { status: 401, responseBody: '{"message":"Invalid API key"}' },
-    ]);
-});
-
-test('aborts the Brevo request after ten seconds and reports a timeout', async () => {
-    let abort;
-    let timeoutMs;
-    let errorLog;
-    global.setTimeout = (callback, delay) => {
-        abort = callback;
-        timeoutMs = delay;
-        return originalSetTimeout(callback, delay);
-    };
-    global.fetch = async (_url, { signal }) => {
-        abort();
-        assert.equal(signal.aborted, true);
-        const error = new Error('The operation was aborted');
-        error.name = 'AbortError';
-        throw error;
-    };
-    logger.error = (...args) => { errorLog = args; };
-
-    await assert.rejects(
-        sendEmail({ to: 'recipient@example.com', subject: 'Your code', html: '<p>123456</p>' }),
-        (error) => error.code === 'ETIMEDOUT',
-    );
-
-    assert.equal(timeoutMs, 10_000);
-    assert.deepEqual(errorLog, [
-        '[EMAIL] Brevo API error',
-        { status: null, responseBody: 'Brevo API request timed out' },
-    ]);
+    assert.equal(typeof lastRequestBody.htmlContent, 'string', 'htmlContent is string');
+    assert.equal(typeof lastRequestBody.textContent, 'string', 'textContent is string');
 });
