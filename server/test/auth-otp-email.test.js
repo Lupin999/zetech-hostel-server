@@ -1,18 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const nodemailer = require('nodemailer');
 const UserModel = require('../models/userModel');
 const OtpModel = require('../models/otpModel');
 
 const originalFindByPhone = UserModel.findByPhone;
 const originalInvalidateExisting = OtpModel.invalidateExisting;
 const originalCreateOtp = OtpModel.createOtp;
-const originalCreateTransport = nodemailer.createTransport;
+const originalFetch = global.fetch;
+const originalApiKey = process.env.BREVO_API_KEY;
+const originalSenderEmail = process.env.BREVO_SENDER_EMAIL;
 let sendEmail;
-
-nodemailer.createTransport = () => ({
-    sendMail: (...args) => sendEmail(...args),
-});
 
 const authService = require('../services/authService');
 
@@ -20,11 +17,12 @@ test.afterEach(() => {
     UserModel.findByPhone = originalFindByPhone;
     OtpModel.invalidateExisting = originalInvalidateExisting;
     OtpModel.createOtp = originalCreateOtp;
+    global.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.BREVO_API_KEY;
+    else process.env.BREVO_API_KEY = originalApiKey;
+    if (originalSenderEmail === undefined) delete process.env.BREVO_SENDER_EMAIL;
+    else process.env.BREVO_SENDER_EMAIL = originalSenderEmail;
     sendEmail = async () => {};
-});
-
-test.after(() => {
-    nodemailer.createTransport = originalCreateTransport;
 });
 
 const setup = (sendEmailHandler) => {
@@ -43,11 +41,24 @@ const setup = (sendEmailHandler) => {
     OtpModel.createOtp = async (phone, code, expiresAt) => {
         savedOtp = { phone, code, expiresAt };
     };
+    process.env.BREVO_API_KEY = 'test-api-key';
+    process.env.BREVO_SENDER_EMAIL = 'sender@example.com';
     sendEmail = sendEmailHandler;
+    global.fetch = async (url, options) => {
+        assert.equal(url, 'https://api.brevo.com/v3/smtp/email');
+        const request = JSON.parse(options.body);
+        await sendEmail({
+            to: request.to[0].email,
+            subject: request.subject,
+            html: request.htmlContent,
+            text: request.textContent,
+        });
+        return { ok: true, status: 201 };
+    };
     return { invalidations, getSavedOtp: () => savedOtp };
 };
 
-test('phone login OTP is sent through Nodemailer to the account email', async () => {
+test('phone login OTP is sent through Brevo to the account email', async () => {
     let sent;
     const state = setup(async (message) => { sent = message; });
 
@@ -62,9 +73,9 @@ test('phone login OTP is sent through Nodemailer to the account email', async ()
     assert.equal(state.invalidations.length, 1);
 });
 
-test('failed SMTP OTP send invalidates the code and returns a service error', async () => {
+test('failed Brevo OTP send invalidates the code and returns a service error', async () => {
     const state = setup(async () => {
-        throw new Error('SMTP request failed');
+        throw new Error('Brevo API request failed');
     });
 
     const result = await authService.sendOtp('+254712345678');
@@ -74,7 +85,7 @@ test('failed SMTP OTP send invalidates the code and returns a service error', as
     assert.equal(state.invalidations.length, 2);
 });
 
-test('SMTP timeout returns a clear retry message and invalidates the code', async () => {
+test('Brevo timeout returns a clear retry message and invalidates the code', async () => {
     const state = setup(async () => {
         const error = new Error('Request timed out');
         error.code = 'ECONNABORTED';

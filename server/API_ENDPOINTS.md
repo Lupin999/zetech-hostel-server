@@ -14,7 +14,9 @@ This reference reflects the checked-in route handlers in `server/routes/` and th
 
 ### Required startup environment variables
 
-These are required by `server/config/env.js`: `PORT`, `DB_HOST`, `DB_USER`, `DB_NAME`, `JWT_SECRET`, `ADMIN_SECRET`, `SMTP_EMAIL`, `SMTP_PASSWORD`, `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_SHORTCODE`, `MPESA_PASSKEY`, and `MPESA_CALLBACK_URL`.
+These are required by `server/config/env.js`: `PORT`, `DB_HOST`, `DB_USER`, `DB_NAME`, `JWT_SECRET`, `ADMIN_SECRET`, `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_SHORTCODE`, `MPESA_PASSKEY`, and `MPESA_CALLBACK_URL`.
+
+Login OTP and password-reset emails are sent through Brevo's HTTPS API. Set `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` in the server environment.
 
 `DB_PASSWORD` is read by the DB connection but is not in the startup validator's required list (supply it if the database requires a password). `DB_PORT` defaults to `3306`. `DB_SSL` and `DB_SSL_CA` are optional; TLS verification is enabled by default in production. `ALLOWED_ORIGINS` and `RENDER_URL` are optional/recommended in production. `MPESA_ENV` controls sandbox/production Daraja behavior.
 

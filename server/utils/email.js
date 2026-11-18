@@ -1,86 +1,62 @@
-/**
- * Email utility — priority order:
- *  1. Brevo (SMTP-relay, free 300/day, no domain verification needed)
- *     Set BREVO_API_KEY in Render environment variables.
- *  2. Resend (API, free 3000/month, needs domain verification for other recipients)
- *     Set RESEND_API_KEY in Render environment variables.
- *  3. Gmail SMTP fallback (local dev only)
- *     Set SMTP_EMAIL + SMTP_PASSWORD in server/.env
- */
-
 const logger = require('./logger');
 
-let _transporter = null;
-
-const getTransporter = () => {
-    if (_transporter) return _transporter;
-
-    const nodemailer = require('nodemailer');
-
-    if (process.env.BREVO_API_KEY) {
-        // ── Brevo SMTP relay ─────────────────────────────────────────────────
-        // Host: smtp-relay.brevo.com  Port: 587  User: your Brevo account email
-        // Pass: your Brevo SMTP key (Settings → SMTP & API → SMTP)
-        _transporter = nodemailer.createTransport({
-            host: 'smtp-relay.brevo.com',
-            port: 587,
-            secure: false,
-            auth: {
-                user: process.env.BREVO_SMTP_USER,  // your Brevo login email
-                pass: process.env.BREVO_API_KEY,     // Brevo SMTP key
-            },
-        });
-    } else {
-        // ── Gmail SMTP fallback (local dev) ──────────────────────────────────
-        _transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.SMTP_EMAIL,
-                pass: process.env.SMTP_PASSWORD,
-            },
-        });
-    }
-
-    return _transporter;
-};
-
-// ── Resend client (only used if RESEND_API_KEY set and BREVO_API_KEY not set) ─
-let _resend = null;
-const getResend = () => {
-    if (!_resend) {
-        const { Resend } = require('resend');
-        _resend = new Resend(process.env.RESEND_API_KEY);
-    }
-    return _resend;
-};
-
 /**
- * Send an email.
+ * Send an email through the Brevo HTTP API.
  * @param {{ to: string, subject: string, html: string, text?: string }} opts
  */
 const sendEmail = async ({ to, subject, html, text }) => {
-    const from = process.env.EMAIL_FROM || `"Zetech Hostel" <zetechhostel@gmail.com>`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
 
-    if (process.env.BREVO_API_KEY) {
-        // ── Brevo path ───────────────────────────────────────────────────────
-        await getTransporter().sendMail({ from, to, subject, html, text: text || '' });
-        logger.info('[EMAIL] Sent via Brevo', { to });
+    try {
+        let response;
+        let failureLogged = false;
 
-    } else if (process.env.RESEND_API_KEY) {
-        // ── Resend path ──────────────────────────────────────────────────────
-        const { data, error } = await getResend().emails.send({
-            from, to, subject, html, text: text || '',
-        });
-        if (error) {
-            logger.error('[EMAIL] Resend error', { message: error.message, name: error.name });
-            throw Object.assign(new Error(error.message), { code: 'RESEND_ERROR' });
+        try {
+            response = await fetch('https://api.brevo.com/v3/smtp/email', {
+                method: 'POST',
+                headers: {
+                    'api-key': process.env.BREVO_API_KEY,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sender: {
+                        name: 'Zetech Hostel',
+                        email: process.env.BREVO_SENDER_EMAIL,
+                    },
+                    to: [{ email: to }],
+                    subject,
+                    htmlContent: html,
+                    textContent: text || '',
+                }),
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                const responseBody = await response.text();
+                logger.error('[EMAIL] Brevo API error', {
+                    status: response.status,
+                    responseBody,
+                });
+                failureLogged = true;
+                throw new Error(`Brevo API request failed with status ${response.status}`);
+            }
+
+            logger.info('[EMAIL] Sent via Brevo API');
+        } catch (error) {
+            if (failureLogged) throw error;
+
+            const failure = controller.signal.aborted
+                ? Object.assign(new Error('Brevo API request timed out'), { code: 'ETIMEDOUT' })
+                : error;
+            logger.error('[EMAIL] Brevo API error', {
+                status: response ? response.status : null,
+                responseBody: failure.message,
+            });
+            throw failure;
         }
-        logger.info('[EMAIL] Sent via Resend', { id: data?.id, to });
-
-    } else {
-        // ── Gmail SMTP fallback ──────────────────────────────────────────────
-        await getTransporter().sendMail({ from, to, subject, html, text: text || '' });
-        logger.info('[EMAIL] Sent via Gmail SMTP', { to });
+    } finally {
+        clearTimeout(timeout);
     }
 };
 

@@ -90,6 +90,10 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
     logger.info(`Server running on port ${PORT}`);
+    logger.info('[EMAIL] Brevo configuration', {
+        brevoApiKeyConfigured: Boolean(process.env.BREVO_API_KEY),
+        brevoSenderEmailConfigured: Boolean(process.env.BREVO_SENDER_EMAIL),
+    });
     startPeriodScheduler();
 
     if (process.env.NODE_ENV === 'production') {

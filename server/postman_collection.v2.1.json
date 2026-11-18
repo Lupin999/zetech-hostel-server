@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Zetech Hostel API (v2.1)",
-    "description": "Checked-in API routes. Set baseUrl to the deployed /api URL or local /api URL. Set token to the appropriate JWT (admin for admin routes, student for student-scoped routes). Phone OTP and password-reset codes are emailed through the account SMTP service. Use M-Pesa sandbox for payment testing.",
+    "description": "Checked-in API routes. Set baseUrl to the deployed /api URL or local /api URL. Set token to the appropriate JWT (admin for admin routes, student for student-scoped routes). Phone OTP and password-reset codes are emailed through Brevo's HTTPS API. Use M-Pesa sandbox for payment testing.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {

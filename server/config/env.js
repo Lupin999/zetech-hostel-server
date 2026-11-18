@@ -8,8 +8,6 @@ const required = [
     'DB_NAME',
     'JWT_SECRET',
     'ADMIN_SECRET',
-    'SMTP_EMAIL',
-    'SMTP_PASSWORD',
     'MPESA_CONSUMER_KEY',
     'MPESA_CONSUMER_SECRET',
     'MPESA_SHORTCODE',

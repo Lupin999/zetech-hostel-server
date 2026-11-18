@@ -179,7 +179,7 @@ const sendOtp = async (phone) => {
             text: `Hi ${user.full_name}, your Zetech Hostel login code is ${code}. It expires in 5 minutes. Do not share it with anyone.`,
         });
     } catch (emailErr) {
-        logger.error('[EMAIL ERROR] Failed to send OTP email through SMTP', {
+        logger.error('[EMAIL ERROR] Failed to send OTP email through Brevo API', {
             code: emailErr.code,
         });
         try {
