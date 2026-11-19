@@ -90,7 +90,7 @@ const getRoomNumberByBookingId = (bookingId) => {
 
 const getBookingInfoForNotification = (bookingId) => {
     return pool.query(
-        `SELECT r.room_number, u.full_name, u.reg_no FROM bookings b
+        `SELECT b.user_id, r.room_number, u.full_name, u.reg_no FROM bookings b
          JOIN rooms r ON b.room_id = r.id JOIN users u ON b.user_id = u.id
          WHERE b.id = ?`, [bookingId]
     );

@@ -1,9 +1,28 @@
 const PaymentModel = require('../models/paymentModel');
+const BookingModel = require('../models/bookingModel');
 const { stkPush, stkQuery } = require('../utils/mpesa');
 const notificationService = require('./notificationService');
 const { normalizeMpesaPhone } = require('../utils/phone');
 
 const DEPOSIT_AMOUNT = 12000;
+
+// If a booking was auto-suspended for temporary access and payment is now confirmed, lift the suspension
+const liftTemporaryAccessSuspension = async (bookingId, userId, roomNumber) => {
+    try {
+        const [bookings] = await BookingModel.getBookingById(bookingId);
+        if (bookings.length && bookings[0].suspended && bookings[0].check_in_access_type === 'temporary') {
+            await BookingModel.suspendBooking(bookingId, false, null);
+            await notificationService.sendNotification(
+                userId,
+                `✅ Your payment for Room ${roomNumber} has been confirmed and your booking suspension has been lifted. You now have full access.`,
+                'payment'
+            );
+        }
+    } catch (err) {
+        // Non-fatal — payment already confirmed, just log
+        console.error('Failed to lift temporary access suspension:', err.message);
+    }
+};
 
 const recordAdminVerifiedPayment = async (actor, { bookingId, amount, mpesaCode, verified }) => {
     if (actor.role !== 'admin') return { error: 'Only an admin can record a verified payment', status: 403 };
@@ -27,6 +46,12 @@ const recordAdminVerifiedPayment = async (actor, { bookingId, amount, mpesaCode,
         adminId: actor.id,
     });
     if (result.error) return result;
+
+    // Lift temporary access suspension if payment now clears the booking
+    const [info] = await PaymentModel.getBookingInfoForNotification(Number(bookingId));
+    if (info.length) {
+        await liftTemporaryAccessSuspension(Number(bookingId), info[0].user_id, info[0].room_number);
+    }
 
     return { message: 'Verified M-Pesa payment recorded', paymentId: result.id };
 };
@@ -91,6 +116,7 @@ const queryStkStatus = async (checkoutRequestId, userId) => {
                     `${info[0].full_name} (${info[0].reg_no}) M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${info[0].room_number} confirmed.`,
                     'payment'
                 );
+                await liftTemporaryAccessSuspension(p.booking_id, p.user_id, info[0].room_number);
             }
         }
         return { status: 'confirmed', message: 'Payment confirmed by Safaricom' };
@@ -126,6 +152,7 @@ const handleCallback = async (body) => {
                 `${p.full_name} (${p.reg_no}) M-Pesa payment of KES ${Number(p.amount).toLocaleString()} for Room ${p.room_number} confirmed. Receipt: ${receipt}`,
                 'payment'
             );
+            await liftTemporaryAccessSuspension(p.booking_id, p.user_id, p.room_number);
         }
     } else if (checkoutId) {
         await PaymentModel.deletePendingByCheckoutId(checkoutId);

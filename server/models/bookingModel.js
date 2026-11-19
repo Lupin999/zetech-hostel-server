@@ -2,7 +2,8 @@ const pool = require('../config/db');
 
 const getActiveBooking = (userId) => {
     return pool.query(
-        `SELECT b.*, r.room_number, r.hostel, r.price, bd.bed_number, bd.position
+        `SELECT b.*, r.room_number, r.hostel, r.price, bd.bed_number, bd.position,
+         b.check_in_access_type, b.check_in_note
          FROM bookings b JOIN rooms r ON b.room_id = r.id
          LEFT JOIN beds bd ON b.bed_id = bd.id
          WHERE b.user_id = ? AND b.status IN ('pending','approved')

@@ -168,6 +168,15 @@ export default function Dashboard() {
                             <br />Contact the hostel office to resolve this.
                         </Alert>
                     )}
+                    {activeBooking?.check_in_access_type === 'temporary' && !isSuspended(activeBooking?.suspended) && (
+                        <Alert severity="warning" icon={false} sx={{ mb: 3 }}>
+                            <AlertTitle>⚠️ Temporary Access Granted</AlertTitle>
+                            You have been checked in on temporary access — your payment is still pending.
+                            {activeBooking.check_in_note && <><br /><b>Note:</b> {activeBooking.check_in_note}</>}
+                            <br />Please clear your balance as soon as possible to avoid suspension.
+                            <Button color="inherit" size="small" sx={{ ml: 1 }} onClick={() => navigate('/my-bookings')}>Pay Now</Button>
+                        </Alert>
+                    )}
                     {activeBooking?.status === 'approved' && !isSuspended(activeBooking?.suspended) && (
                         <Alert severity="success" icon={<CheckCircle />} sx={{ mb: 3 }}
                             action={<Button color="inherit" size="small" onClick={() => navigate('/my-bookings')}>Pay Now</Button>}>
