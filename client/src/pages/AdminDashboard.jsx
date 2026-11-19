@@ -69,6 +69,15 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
     };
     const filtered = filter === 'all' ? bookings : bookings.filter(b => b.status === filter);
 
+    // Sort: suspended → pending → approved → rest. Within each group keep original order.
+    const sortPriority = (b) => {
+        if (isSuspended(b.suspended)) return 0;
+        if (b.status === 'pending') return 1;
+        if (b.status === 'approved') return 2;
+        return 3;
+    };
+    const sortedFiltered = [...filtered].sort((a, b) => sortPriority(a) - sortPriority(b));
+
     const renderRoomSection = (hostel) => {
         const rows = rooms.filter(room => room.hostel === hostel);
         return (
@@ -227,7 +236,7 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
     };
 
     // Which bookings are eligible for deletion (completed/rejected/cancelled)
-    const deletable = filtered.filter(b => ['completed', 'rejected', 'cancelled'].includes(b.status));
+    const deletable = sortedFiltered.filter(b => ['completed', 'rejected', 'cancelled'].includes(b.status));
     const allDeletableSelected = deletable.length > 0 && deletable.every(b => selected.has(b.id));
     const toggleSelectAll = () => {
         if (allDeletableSelected) {
@@ -371,8 +380,8 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
                             Tick completed, rejected or cancelled bookings to remove them. Active bookings cannot be deleted.
                         </Alert>
                     )}
-                    <TableContainer component={Paper} sx={{ overflowX: 'auto', mb: 3 }}>
-                <Table>
+                    <TableContainer component={Paper} sx={{ mb: 3 }}>
+                <Table size="small">
                     <TableHead><TableRow>
                         <TableCell padding="checkbox">
                             <Checkbox
@@ -383,51 +392,64 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
                                 disabled={!deletable.length}
                             />
                         </TableCell>
-                        {['Student', 'Reg No', 'Room', 'Bed', 'Hostel', 'Arrival', 'Status', 'Payment', 'Actions'].map(h => <TableCell key={h}>{h}</TableCell>)}
+                        {['Student', 'Room / Bed', 'Arrival', 'Status', 'Payment', 'Actions'].map(h => <TableCell key={h}>{h}</TableCell>)}
                     </TableRow></TableHead>
                     <TableBody>
-                        {!filtered.length ? <TableRow><TableCell colSpan={10} align="center" sx={{ py: 4, color: 'text.secondary' }}>No bookings</TableCell></TableRow> :
-                        filtered.map(b => {
+                        {!sortedFiltered.length ? <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>No bookings</TableCell></TableRow> :
+                        sortedFiltered.map(b => {
                             const hasBed = b.bed_number && String(b.bed_number).trim() !== '0';
                             const hasPayment = b.payment_status && String(b.payment_status).trim() !== '0';
                             const suspended = isSuspended(b.suspended);
                             const isDeletable = ['completed', 'rejected', 'cancelled'].includes(b.status);
                             const isSelected = selected.has(b.id);
                             return (
-                                <TableRow key={b.id} selected={isSelected} sx={{ bgcolor: isSelected ? 'rgba(229,57,53,0.06)' : b.status === 'pending' ? 'rgba(251,140,0,0.04)' : undefined }}>
+                                <TableRow key={b.id} selected={isSelected} sx={{
+                                    bgcolor: isSelected
+                                        ? 'rgba(229,57,53,0.06)'
+                                        : suspended ? 'rgba(229,57,53,0.04)'
+                                        : b.status === 'pending' ? 'rgba(251,140,0,0.04)'
+                                        : undefined
+                                }}>
                                     <TableCell padding="checkbox">
-                                        <Checkbox
-                                            size="small"
-                                            checked={isSelected}
-                                            disabled={!isDeletable}
-                                            onChange={() => toggleSelect(b.id)}
-                                        />
+                                        <Checkbox size="small" checked={isSelected} disabled={!isDeletable} onChange={() => toggleSelect(b.id)} />
                                     </TableCell>
-                                    <TableCell>{b.full_name}</TableCell>
-                                    <TableCell>{b.reg_no}</TableCell>
-                                    <TableCell>{formatRoomNumber(b.room_number)}</TableCell>
-                                    <TableCell>{hasBed ? `${b.bed_number} (${b.bed_position || ''})` : '—'}</TableCell>
-                                    <TableCell>{formatHostelName(b.hostel)}</TableCell>
-                                    <TableCell>{b.arrival_date ? formatDate(b.arrival_date) : '—'}</TableCell>
-                                    <TableCell><Chip label={b.status} size="small" color={b.status === 'approved' ? 'success' : b.status === 'rejected' ? 'error' : 'warning'} /></TableCell>
+                                    {/* Student — name + reg + hostel stacked */}
+                                    <TableCell>
+                                        <Typography variant="body2" fontWeight={600}>{b.full_name}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{b.reg_no}</Typography>
+                                        <br />
+                                        <Typography variant="caption" color="text.secondary">{formatHostelName(b.hostel)}</Typography>
+                                    </TableCell>
+                                    {/* Room + bed stacked */}
+                                    <TableCell>
+                                        <Typography variant="body2">Room {formatRoomNumber(b.room_number)}</Typography>
+                                        {hasBed && <Typography variant="caption" color="text.secondary">Bed {b.bed_number} ({b.bed_position || ''})</Typography>}
+                                    </TableCell>
+                                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{b.arrival_date ? formatDate(b.arrival_date) : '—'}</TableCell>
+                                    <TableCell>
+                                        <Chip label={b.status} size="small" color={b.status === 'approved' ? 'success' : b.status === 'rejected' ? 'error' : b.status === 'completed' ? 'default' : 'warning'} />
+                                        {suspended && <Chip label="Suspended" size="small" color="error" sx={{ ml: 0.5 }} />}
+                                    </TableCell>
                                     <TableCell>{hasPayment ? <Chip label={b.payment_status === 'confirmed' ? 'Paid' : 'Pending'} size="small" color={b.payment_status === 'confirmed' ? 'success' : 'warning'} variant="outlined" /> : '—'}</TableCell>
                                     <TableCell>
-                                    {b.status === 'pending' && <Box sx={{ display: 'flex', gap: 0.5 }}><Button size="small" color="success" variant="contained" onClick={() => handleStatus(b, 'approved')} sx={{ bgcolor: '#2e7d32', boxShadow: '0 4px 12px rgba(46,125,50,0.35)', color: '#fff', '&:hover': { bgcolor: '#256629' } }}>Approve</Button><Button size="small" color="error" variant="outlined" onClick={() => handleStatus(b, 'rejected')} sx={{ borderWidth: 2, fontWeight: 700 }}>Reject</Button></Box>}
-                                    {b.status === 'approved' && !suspended && (
-                                        <Button size="small" color="warning" variant="contained" sx={{ ml: 0.5, bgcolor: '#f9a825', color: '#111', fontWeight: 700, boxShadow: '0 4px 12px rgba(249,168,37,0.35)', '&:hover': { bgcolor: '#f59e0b' } }}
-                                            onClick={() => { setSuspendTarget(b); setSuspendReason(''); setSuspendDialog(true); }}>Suspend</Button>
-                                    )}
-                                    <Button size="small" variant="contained" sx={{ ml: 0.5, bgcolor: '#1a237e', color: '#fff', boxShadow: '0 4px 12px rgba(26,35,126,0.30)', '&:hover': { bgcolor: '#101a73' } }}
-                                        onClick={() => { setMsgTarget(b); setMsgText(''); setMsgDialog(true); }}>💬 Message</Button>
-                                    {b.status === 'approved' && suspended && (
-                                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                                            <Chip label="🚫 Suspended" size="small" color="error" />
-                                            <Button size="small" color="success" variant="outlined" onClick={() => handleUnsuspend(b.id)}>Unsuspend</Button>
+                                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                            {b.status === 'pending' && <>
+                                                <Button size="small" color="success" variant="contained" onClick={() => handleStatus(b, 'approved')} sx={{ bgcolor: '#2e7d32', color: '#fff', '&:hover': { bgcolor: '#256629' } }}>Approve</Button>
+                                                <Button size="small" color="error" variant="outlined" onClick={() => handleStatus(b, 'rejected')}>Reject</Button>
+                                            </>}
+                                            {b.status === 'approved' && !suspended && (
+                                                <Button size="small" color="warning" variant="contained" sx={{ bgcolor: '#f9a825', color: '#111', fontWeight: 700, '&:hover': { bgcolor: '#f59e0b' } }}
+                                                    onClick={() => { setSuspendTarget(b); setSuspendReason(''); setSuspendDialog(true); }}>Suspend</Button>
+                                            )}
+                                            {b.status === 'approved' && suspended && (
+                                                <Button size="small" color="success" variant="outlined" onClick={() => handleUnsuspend(b.id)}>Unsuspend</Button>
+                                            )}
+                                            <Button size="small" variant="contained" sx={{ bgcolor: '#1a237e', color: '#fff', '&:hover': { bgcolor: '#101a73' } }}
+                                                onClick={() => { setMsgTarget(b); setMsgText(''); setMsgDialog(true); }}>💬</Button>
+                                            {b.status === 'approved' && b.payment_status === 'confirmed' && !suspended && <Chip label="✓" size="small" color="success" />}
                                         </Box>
-                                    )}
-                                    {b.status === 'approved' && b.payment_status === 'confirmed' && !suspended && <Chip label="✓ Complete" size="small" color="success" />}
-                                </TableCell>
-                            </TableRow>
+                                    </TableCell>
+                                </TableRow>
                             );
                         })}
                     </TableBody>
