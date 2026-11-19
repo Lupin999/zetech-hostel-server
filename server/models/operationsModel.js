@@ -19,7 +19,8 @@ const getUserRoleDetails = (userId) => pool.query(
 
 const listStays = () => pool.query(
     `SELECT b.id, b.user_id, b.room_id, b.semester, b.arrival_date, b.departure_date,
-        b.checked_in_at, b.checked_out_at, r.room_number, r.hostel, bd.bed_number,
+        b.checked_in_at, b.checked_out_at, b.check_in_access_type, b.check_in_note,
+        r.room_number, r.hostel, bd.bed_number,
         u.full_name, u.reg_no,
         (SELECT COUNT(*) FROM payments p WHERE p.booking_id = b.id AND p.status = 'confirmed') AS confirmed_payments
      FROM bookings b JOIN users u ON u.id = b.user_id JOIN rooms r ON r.id = b.room_id
@@ -39,14 +40,16 @@ const listStayHistory = (search = '') => pool.query(
     [search, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`]
 );
 
-const checkIn = (bookingId, allowUnpaid = false) => pool.query(
+const checkIn = (bookingId, allowUnpaid = false, accessType = null, note = null) => pool.query(
     allowUnpaid
-        ? `UPDATE bookings SET checked_in_at = CURRENT_TIMESTAMP
+        ? `UPDATE bookings SET checked_in_at = CURRENT_TIMESTAMP,
+              check_in_access_type = ?, check_in_note = ?
            WHERE id = ? AND status = 'approved' AND checked_in_at IS NULL AND checked_out_at IS NULL`
-        : `UPDATE bookings SET checked_in_at = CURRENT_TIMESTAMP
+        : `UPDATE bookings SET checked_in_at = CURRENT_TIMESTAMP,
+              check_in_access_type = 'normal', check_in_note = NULL
            WHERE id = ? AND status = 'approved' AND checked_in_at IS NULL AND checked_out_at IS NULL
              AND EXISTS (SELECT 1 FROM payments p WHERE p.booking_id = bookings.id AND p.status = 'confirmed')`,
-    [bookingId]
+    allowUnpaid ? [accessType, note, bookingId] : [bookingId]
 );
 
 const checkOut = (bookingId) => pool.query(

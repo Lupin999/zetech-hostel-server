@@ -83,7 +83,7 @@ const checkIn = async (actorId, bookingId, paymentOverrideReason = null, accessT
     if (!['temporary', 'mercy'].includes(accessType)) {
         return { error: 'Access type must be temporary or mercy', status: 400 };
     }
-    const [result] = await model.checkIn(bookingId, Boolean(reason));
+    const [result] = await model.checkIn(bookingId, Boolean(reason), accessType, reason);
     if (!result.affectedRows) {
         return {
             error: reason
