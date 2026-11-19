@@ -227,6 +227,11 @@ const listRequests = (userId) => pool.query(
     [userId || null, userId || null]
 );
 
+const getRequestById = (id) => pool.query(
+    `SELECT m.id, m.user_id, m.title, m.request_type FROM maintenance_requests m WHERE m.id = ?`,
+    [id]
+);
+
 const updateRequest = (id, { status, resolution, assignedTo }) => pool.query(
     `UPDATE maintenance_requests SET status = ?, resolution = ?, assigned_to = ?,
         resolved_at = IF(? IN ('resolved', 'closed'), COALESCE(resolved_at, CURRENT_TIMESTAMP), NULL)
@@ -512,7 +517,7 @@ const getUserIdForBooking = async (bookingId) => {
 
 module.exports = {
     listStudents, updateRole, listStays, listStayHistory, checkIn, checkOut, getStayBed, getStudentCurrentStay, createCheckoutRequest, listCheckoutRequests, decideCheckoutRequest, updateStayDates, updateBedStatus, getStudentRoom,
-    createRequest, listRequests, updateRequest, createVisitor, listVisitors,
+    createRequest, listRequests, updateRequest, getRequestById, createVisitor, listVisitors,
     getVisitor, updateVisitorStatus, listInspections, createInspection, deleteInspection, updateRoomStatus, getPaymentReceipt,
     getPaymentReport, getBalances, getOverview, writeAuditLog, listAuditLogs,
     getUserRoleDetails,

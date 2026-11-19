@@ -218,9 +218,15 @@ const createRequest = async (userId, input) => {
         description: input.description.trim(),
         priority: input.priority || 'normal',
     });
+    // Confirm submission to the student
+    await notificationService.sendNotification(
+        userId,
+        `✅ Your ${input.request_type || 'maintenance'} request "${input.title.trim()}" has been submitted and is awaiting staff review.`,
+        'general'
+    );
     // Notify admins so they see it in their notification bell
     await notificationService.sendToRole(['admin', 'warden'],
-        `New ${input.request_type || 'maintenance'} request from a student: "${input.title.trim()}"`,
+        `📋 New ${input.request_type || 'maintenance'} request from a student: "${input.title.trim()}" — check Operations → Requests.`,
         'general'
     );
     return { id: result.insertId, message: 'Request submitted' };
@@ -233,12 +239,24 @@ const listRequests = async (user) => {
 
 const updateRequest = async (actorId, id, input) => {
     if (!requestStatuses.includes(input.status)) return { error: 'Invalid request status', status: 400 };
+    const [rows] = await model.getRequestById(id);
+    const request = rows?.[0];
     const [result] = await model.updateRequest(id, {
         status: input.status,
         resolution: input.resolution?.trim() || null,
         assignedTo: input.assigned_to || null,
     });
     if (!result.affectedRows) return { error: 'Request not found', status: 404 };
+    // Notify the student their request status changed
+    if (request?.user_id) {
+        const statusLabel = input.status.replace('_', ' ');
+        const resolutionText = input.resolution?.trim() ? ` Resolution: ${input.resolution.trim()}` : '';
+        await notificationService.sendNotification(
+            request.user_id,
+            `📋 Your request "${request.title}" has been updated to: ${statusLabel}.${resolutionText}`,
+            'general'
+        );
+    }
     await audit(actorId, 'service_request.updated', 'maintenance_request', id, { status: input.status });
     return { message: 'Request updated' };
 };
