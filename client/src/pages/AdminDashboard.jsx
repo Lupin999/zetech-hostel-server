@@ -4,9 +4,9 @@ import {
     Typography, Box, CircularProgress, Grid, Paper, Button,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, TextField, MenuItem, Divider, Dialog, DialogTitle,
-    DialogContent, DialogActions, IconButton, Tooltip, Alert
+    DialogContent, DialogActions, IconButton, Tooltip, Alert, Checkbox
 } from '@mui/material';
-import { Hotel, KingBed, CheckCircle, EventAvailable, Delete, Add, Campaign } from '@mui/icons-material';
+import { Hotel, KingBed, CheckCircle, EventAvailable, Delete, Add, Campaign, DeleteSweep } from '@mui/icons-material';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
@@ -48,6 +48,9 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
     const [profileForm, setProfileForm] = useState({ email: user?.email || '', phone: user?.phone || '' });
     const [profileSaving, setProfileSaving] = useState(false);
     const [adminTab, setAdminTab] = useState(initialTab);
+    // Bulk selection for completed/rejected bookings
+    const [selected, setSelected] = useState(new Set());
+    const [bulkDeleting, setBulkDeleting] = useState(false);
 
     const fetchData = async () => {
         setLoading(true);
@@ -203,6 +206,40 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
         try { await api.delete(`/notices/${id}`); fetchData(); toast.success('Deleted'); } catch { toast.error('Failed'); }
     };
 
+    const handleBulkDelete = async () => {
+        if (!selected.size) return;
+        const r = await Swal.fire({
+            title: `Remove ${selected.size} booking${selected.size > 1 ? 's' : ''}?`,
+            text: 'Only completed, rejected, and cancelled bookings will be removed. This cannot be undone.',
+            icon: 'warning', showCancelButton: true,
+            confirmButtonColor: '#e53935', confirmButtonText: 'Yes, remove them',
+        });
+        if (!r.isConfirmed) return;
+        setBulkDeleting(true);
+        try {
+            const res = await api.delete('/bookings/bulk', { data: { ids: [...selected] } });
+            setSelected(new Set());
+            fetchData();
+            toast.success(res.data.message);
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to delete');
+        } finally { setBulkDeleting(false); }
+    };
+
+    // Which bookings are eligible for deletion (completed/rejected/cancelled)
+    const deletable = filtered.filter(b => ['completed', 'rejected', 'cancelled'].includes(b.status));
+    const allDeletableSelected = deletable.length > 0 && deletable.every(b => selected.has(b.id));
+    const toggleSelectAll = () => {
+        if (allDeletableSelected) {
+            setSelected(prev => { const n = new Set(prev); deletable.forEach(b => n.delete(b.id)); return n; });
+        } else {
+            setSelected(prev => { const n = new Set(prev); deletable.forEach(b => n.add(b.id)); return n; });
+        }
+    };
+    const toggleSelect = (id) => setSelected(prev => {
+        const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+    });
+
     const handleUpdateProfile = async () => {
         if (!profileForm.email.trim()) return toast.error('Email is required');
         if (!/\S+@\S+\.\S+/.test(profileForm.email)) return toast.error('Enter a valid email');
@@ -297,28 +334,75 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
                     )}
 
                     {/* Bookings Table */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                        <Typography variant="h6">Student Bookings</Typography>
-                        <TextField select size="small" value={filter} onChange={e => setFilter(e.target.value)} sx={{ minWidth: 150 }}>
-                            <MenuItem value="all">All ({bookings.length})</MenuItem>
-                            <MenuItem value="pending">Pending ({bookings.filter(b => b.status === 'pending').length})</MenuItem>
-                            <MenuItem value="approved">Approved ({bookings.filter(b => b.status === 'approved').length})</MenuItem>
-                            <MenuItem value="rejected">Rejected ({bookings.filter(b => b.status === 'rejected').length})</MenuItem>
-                        </TextField>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="h6">Student Bookings</Typography>
+                            {selected.size > 0 && (
+                                <Chip
+                                    label={`${selected.size} selected`}
+                                    color="error" size="small"
+                                    onDelete={() => setSelected(new Set())}
+                                />
+                            )}
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                            {selected.size > 0 && (
+                                <Button
+                                    size="small" variant="contained" color="error"
+                                    startIcon={<DeleteSweep />}
+                                    disabled={bulkDeleting}
+                                    onClick={handleBulkDelete}
+                                >
+                                    {bulkDeleting ? 'Removing...' : `Remove ${selected.size}`}
+                                </Button>
+                            )}
+                            <TextField select size="small" value={filter} onChange={e => { setFilter(e.target.value); setSelected(new Set()); }} sx={{ minWidth: 150 }}>
+                                <MenuItem value="all">All ({bookings.length})</MenuItem>
+                                <MenuItem value="pending">Pending ({bookings.filter(b => b.status === 'pending').length})</MenuItem>
+                                <MenuItem value="approved">Approved ({bookings.filter(b => b.status === 'approved').length})</MenuItem>
+                                <MenuItem value="rejected">Rejected ({bookings.filter(b => b.status === 'rejected').length})</MenuItem>
+                                <MenuItem value="completed">Completed ({bookings.filter(b => b.status === 'completed').length})</MenuItem>
+                                <MenuItem value="cancelled">Cancelled ({bookings.filter(b => b.status === 'cancelled').length})</MenuItem>
+                            </TextField>
+                        </Box>
                     </Box>
+                    {deletable.length > 0 && (
+                        <Alert severity="info" sx={{ mb: 1 }} icon={false}>
+                            Tick completed, rejected or cancelled bookings to remove them. Active bookings cannot be deleted.
+                        </Alert>
+                    )}
                     <TableContainer component={Paper} sx={{ overflowX: 'auto', mb: 3 }}>
                 <Table>
                     <TableHead><TableRow>
+                        <TableCell padding="checkbox">
+                            <Checkbox
+                                size="small"
+                                checked={allDeletableSelected}
+                                indeterminate={selected.size > 0 && !allDeletableSelected}
+                                onChange={toggleSelectAll}
+                                disabled={!deletable.length}
+                            />
+                        </TableCell>
                         {['Student', 'Reg No', 'Room', 'Bed', 'Hostel', 'Arrival', 'Status', 'Payment', 'Actions'].map(h => <TableCell key={h}>{h}</TableCell>)}
                     </TableRow></TableHead>
                     <TableBody>
-                        {!filtered.length ? <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4, color: 'text.secondary' }}>No bookings</TableCell></TableRow> :
+                        {!filtered.length ? <TableRow><TableCell colSpan={10} align="center" sx={{ py: 4, color: 'text.secondary' }}>No bookings</TableCell></TableRow> :
                         filtered.map(b => {
                             const hasBed = b.bed_number && String(b.bed_number).trim() !== '0';
                             const hasPayment = b.payment_status && String(b.payment_status).trim() !== '0';
                             const suspended = isSuspended(b.suspended);
+                            const isDeletable = ['completed', 'rejected', 'cancelled'].includes(b.status);
+                            const isSelected = selected.has(b.id);
                             return (
-                                <TableRow key={b.id} sx={{ bgcolor: b.status === 'pending' ? 'rgba(251,140,0,0.04)' : undefined }}>
+                                <TableRow key={b.id} selected={isSelected} sx={{ bgcolor: isSelected ? 'rgba(229,57,53,0.06)' : b.status === 'pending' ? 'rgba(251,140,0,0.04)' : undefined }}>
+                                    <TableCell padding="checkbox">
+                                        <Checkbox
+                                            size="small"
+                                            checked={isSelected}
+                                            disabled={!isDeletable}
+                                            onChange={() => toggleSelect(b.id)}
+                                        />
+                                    </TableCell>
                                     <TableCell>{b.full_name}</TableCell>
                                     <TableCell>{b.reg_no}</TableCell>
                                     <TableCell>{formatRoomNumber(b.room_number)}</TableCell>

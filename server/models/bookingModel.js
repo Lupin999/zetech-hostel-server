@@ -93,6 +93,16 @@ const deleteBooking = (id) => {
     return pool.query('DELETE FROM bookings WHERE id = ?', [id]);
 };
 
+// Bulk delete — only allows removing completed or rejected bookings (safe to erase)
+const bulkDeleteBookings = (ids) => {
+    if (!ids.length) return Promise.resolve([{ affectedRows: 0 }]);
+    const placeholders = ids.map(() => '?').join(', ');
+    return pool.query(
+        `DELETE FROM bookings WHERE id IN (${placeholders}) AND status IN ('completed','rejected','cancelled')`,
+        ids
+    );
+};
+
 const getBookingStatus = () => {
     return pool.query("SELECT message FROM notices WHERE title = 'BOOKING_STATUS' LIMIT 1");
 };
@@ -118,6 +128,6 @@ const getStudentHostel = (userId) => {
 module.exports = {
     getActiveBooking, getStudentBookings, getAllBookings, checkExistingBooking,
     createBooking, getBookingById, getBookingByIdAndUser, updateBookingStatus,
-    suspendBooking, getApprovedBookingWithDetails, getApprovedCount, deleteBooking,
+    suspendBooking, getApprovedBookingWithDetails, getApprovedCount, deleteBooking, bulkDeleteBookings,
     getBookingStatus, setBookingStatus, getStudentHostel
 };

@@ -111,4 +111,21 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     }
 });
 
+// Bulk delete — admin only, only completed/rejected/cancelled bookings
+router.delete('/bulk', authenticateToken, requireAdmin, async (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) {
+        return res.status(400).json({ error: 'Provide an array of booking IDs to delete' });
+    }
+    const validIds = ids.filter(id => /^\d+$/.test(String(id)) && Number(id) > 0);
+    if (!validIds.length) return res.status(400).json({ error: 'No valid booking IDs provided' });
+    try {
+        const [result] = await require('../models/bookingModel').bulkDeleteBookings(validIds);
+        res.json({ deleted: result.affectedRows, message: `${result.affectedRows} booking(s) removed` });
+    } catch (error) {
+        logger.error('BULK DELETE BOOKINGS ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router;
