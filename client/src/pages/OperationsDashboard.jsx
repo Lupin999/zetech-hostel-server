@@ -547,6 +547,50 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
                 For a payment that did not sync automatically, record it only after matching the receipt, amount, and payer in the official M-Pesa account. A student screenshot or message alone is not proof.
             </Alert>
             <Button variant="contained" sx={{ mb: 2 }} onClick={() => openVerifiedPaymentDialog()}>Record verified M-Pesa payment</Button>
+
+            {/* Outstanding balances — sorted highest first */}
+            {paymentBalances.filter(b => Number(b.balance) > 0).length > 0 && (
+                <Paper sx={{ mb: 3, overflow: 'hidden' }}>
+                    <Box sx={{ px: 2, py: 1.5, bgcolor: 'rgba(251,140,0,0.08)', borderBottom: '1px solid rgba(0,0,0,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="subtitle1" fontWeight={700} sx={{ color: '#e65100' }}>
+                            ⚠️ Outstanding Balances ({paymentBalances.filter(b => Number(b.balance) > 0).length} students)
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            Total due: KES {paymentBalances.reduce((sum, b) => sum + Number(b.balance), 0).toLocaleString()}
+                        </Typography>
+                    </Box>
+                    <TableContainer><Table size="small">
+                        <TableHead><TableRow>
+                            {['Student', 'Reg No', 'Room', 'Semester', 'Room fee', 'Paid', 'Balance'].map(h => <TableCell key={h}>{h}</TableCell>)}
+                        </TableRow></TableHead>
+                        <TableBody>
+                            {[...paymentBalances]
+                                .filter(b => Number(b.balance) > 0)
+                                .sort((a, b) => Number(b.balance) - Number(a.balance))
+                                .map(b => (
+                                    <TableRow key={b.booking_id} sx={{ bgcolor: Number(b.balance) >= 20000 ? 'rgba(229,57,53,0.04)' : undefined }}>
+                                        <TableCell>{b.full_name}</TableCell>
+                                        <TableCell>{b.reg_no}</TableCell>
+                                        <TableCell>{formatHostelName(b.hostel)} {formatRoomNumber(b.room_number)}</TableCell>
+                                        <TableCell>{b.semester}</TableCell>
+                                        <TableCell>KES {Number(b.amount_due).toLocaleString()}</TableCell>
+                                        <TableCell sx={{ color: '#2e7d32', fontWeight: 600 }}>KES {Number(b.amount_paid).toLocaleString()}</TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                size="small"
+                                                label={`KES ${Number(b.balance).toLocaleString()} due`}
+                                                color={Number(b.balance) >= 20000 ? 'error' : 'warning'}
+                                                variant="outlined"
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                        </TableBody>
+                    </Table></TableContainer>
+                </Paper>
+            )}
+
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>All payments</Typography>
             <TableContainer component={Paper} sx={{ mb: 3 }}><Table size="small"><TableHead><TableRow>{['Date', 'Student', 'Registration', 'Room', 'Method', 'Safaricom receipt', 'Amount', 'Status'].map(value => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
                 <TableBody>{financePayments.map(payment => <TableRow key={payment.id}><TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell><TableCell>{payment.full_name}</TableCell><TableCell>{payment.reg_no}</TableCell><TableCell>{formatHostelName(payment.hostel)} {formatRoomNumber(payment.room_number)}</TableCell><TableCell>{formatPaymentMethod(payment.payment_method)}</TableCell><TableCell>{payment.status === 'confirmed' ? payment.mpesa_code || '—' : 'Awaiting M-Pesa verification'}</TableCell><TableCell>KES {Number(payment.amount).toLocaleString()}</TableCell><TableCell>{payment.status}</TableCell></TableRow>)}
                     {!financePayments.length && <TableRow><TableCell colSpan={8} align="center">No payments found</TableCell></TableRow>}</TableBody></Table></TableContainer>
