@@ -111,12 +111,12 @@ const createCheckoutRequest = async ({ bookingId, userId, reason }) => {
         await connection.beginTransaction();
         const [stays] = await connection.query(
             `SELECT id FROM bookings WHERE id = ? AND user_id = ? AND status = 'approved'
-             AND checked_in_at IS NOT NULL AND checked_out_at IS NULL FOR UPDATE`,
+             AND checked_out_at IS NULL FOR UPDATE`,
             [bookingId, userId]
         );
         if (!stays.length) {
             await connection.rollback();
-            return { error: 'An active checked-in stay is required to request checkout', status: 409 };
+            return { error: 'No approved active booking found to request checkout', status: 409 };
         }
         const [pending] = await connection.query(
             "SELECT id FROM checkout_requests WHERE booking_id = ? AND status = 'pending' FOR UPDATE",

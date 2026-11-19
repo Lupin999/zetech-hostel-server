@@ -2,6 +2,7 @@ const model = require('../models/operationsModel');
 const RoomModel = require('../models/roomModel');
 const notificationService = require('./notificationService');
 const { normalizeRole } = require('../utils/roles');
+const pool = require('../config/db');
 
 const staffRoles = ['admin'];
 const residentialRoles = ['admin'];
@@ -126,15 +127,23 @@ const checkOut = async (actorId, bookingId) => {
 };
 
 const createCheckoutRequest = async (userId, reason) => {
-    const { stay } = await getStudentCurrentStay(userId);
-    if (!stay) return { error: 'You must be checked in to request checkout', status: 409 };
+    // Allow any student with an approved booking — no check-in required
+    const [bookings] = await pool.query(
+        `SELECT b.id, r.room_number, r.hostel FROM bookings b
+         JOIN rooms r ON r.id = b.room_id
+         WHERE b.user_id = ? AND b.status = 'approved'
+         ORDER BY b.created_at DESC LIMIT 1`,
+        [userId]
+    );
+    if (!bookings.length) return { error: 'You need an approved booking to request checkout', status: 409 };
+    const booking = bookings[0];
     const result = await model.createCheckoutRequest({
-        bookingId: stay.id,
+        bookingId: booking.id,
         userId,
         reason: reason?.trim() || null,
     });
     if (result.error) return result;
-    await notificationService.sendNotification(userId, `Your checkout request for ${stay.hostel} Hostel Room ${stay.room_number} is awaiting admin approval.`, 'booking');
+    await notificationService.sendNotification(userId, `Your checkout request for ${booking.hostel} Hostel Room ${booking.room_number} is awaiting admin approval.`, 'booking');
     return { id: result.id, message: 'Checkout request submitted for staff review' };
 };
 
@@ -186,19 +195,34 @@ const updateStayDates = async (actorId, bookingId, arrivalDate, departureDate) =
 };
 
 const createRequest = async (userId, input) => {
+    // Allow any student with an approved booking — no check-in required
+    const [bookings] = await pool.query(
+        `SELECT b.id, b.room_id, r.room_number, r.hostel FROM bookings b
+         JOIN rooms r ON r.id = b.room_id
+         WHERE b.user_id = ? AND b.status = 'approved'
+         ORDER BY b.created_at DESC LIMIT 1`,
+        [userId]
+    ).catch(() => [[]]);
+    // Fall back to current stay if available
     const { stay } = await getStudentCurrentStay(userId);
-    if (!stay) return { error: 'An active checked-in room is required to submit a request', status: 403 };
-    if (input.room_id && Number(input.room_id) !== Number(stay.room_id)) {
+    const booking = stay || (bookings.length ? { id: bookings[0].id, room_id: bookings[0].room_id } : null);
+    if (!booking) return { error: 'You need an approved booking to submit a request', status: 403 };
+    if (input.room_id && Number(input.room_id) !== Number(booking.room_id)) {
         return { error: 'Requests can only be submitted for your current room', status: 403 };
     }
     const [result] = await model.createRequest({
         userId,
-        roomId: stay.room_id,
+        roomId: booking.room_id,
         requestType: input.request_type || 'maintenance',
         title: input.title.trim(),
         description: input.description.trim(),
         priority: input.priority || 'normal',
     });
+    // Notify admins so they see it in their notification bell
+    await notificationService.sendToRole(['admin', 'warden'],
+        `New ${input.request_type || 'maintenance'} request from a student: "${input.title.trim()}"`,
+        'general'
+    );
     return { id: result.insertId, message: 'Request submitted' };
 };
 

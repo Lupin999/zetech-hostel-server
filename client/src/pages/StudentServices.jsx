@@ -19,6 +19,7 @@ export default function StudentServices() {
     const [payments, setPayments] = useState([]);
     const [balances, setBalances] = useState([]);
     const [currentStay, setCurrentStay] = useState(null);
+    const [hasApprovedBooking, setHasApprovedBooking] = useState(false);
     const [stayLoaded, setStayLoaded] = useState(false);
     const [checkoutRequests, setCheckoutRequests] = useState([]);
     const [checkoutReason, setCheckoutReason] = useState('');
@@ -64,9 +65,15 @@ export default function StudentServices() {
             if (active) toast.error(error.response?.data?.error || 'Could not load your services');
         });
         api.get('/operations/my-stay').then((response) => {
-            if (active) setCurrentStay(response.data.stay);
-        }).catch(error => {
-            if (active) toast.error(error.response?.data?.error || 'Could not load your current room');
+            if (active) {
+                setCurrentStay(response.data.stay);
+                setHasApprovedBooking(!!response.data.stay);
+            }
+        }).catch(() => {
+            // Fall back to checking /bookings/active for students not yet checked in
+            api.get('/bookings/active').then(r => {
+                if (active && r.data) setHasApprovedBooking(r.data.status === 'approved');
+            }).catch(() => {});
         }).finally(() => {
             if (active) setStayLoaded(true);
         });
@@ -108,16 +115,16 @@ export default function StudentServices() {
                 Current room: {formatHostelName(currentStay.hostel)} {formatRoomNumber(currentStay.room_number)} · {currentStay.semester}
             </Alert>}
             <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
-                <Tab label="Requests" disabled={!currentStay} />
+                <Tab label="Requests" disabled={!hasApprovedBooking} />
                 <Tab label="Payments" />
-                <Tab label="Checkout" disabled={!currentStay && !checkoutRequests.length} />
+                <Tab label="Checkout" disabled={!hasApprovedBooking && !checkoutRequests.length} />
             </Tabs>
-            {!currentStay && !approvedClearance && stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>
-                An active checked-in room is required for maintenance requests and checkout. Payments remain available.
+            {!hasApprovedBooking && !approvedClearance && stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>
+                You need an approved booking to submit requests or request checkout. Payments remain available.
             </Alert>}
-            {!currentStay && !stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>Checking your current room assignment…</Alert>}
+            {!stayLoaded && <Alert severity="info" sx={{ mb: 2 }}>Checking your room assignment…</Alert>}
 
-            {tab === 0 && currentStay && <>
+            {tab === 0 && hasApprovedBooking && <>
                 <Paper component="form" onSubmit={submitRequest} sx={{ p: 2, mb: 3 }}>
                     <Typography variant="h6" gutterBottom>Submit a maintenance request or complaint</Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
@@ -159,7 +166,7 @@ export default function StudentServices() {
                 </Paper>
             </>}
 
-            {tab === 2 && (currentStay || checkoutRequests.length > 0) && <>
+            {tab === 2 && (hasApprovedBooking || checkoutRequests.length > 0) && <>
                 {approvedClearance && <Paper
                     sx={{
                         p: { xs: 2, sm: 3 }, mb: 3, border: '2px solid',
