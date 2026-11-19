@@ -478,9 +478,22 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
 
         {activeTab === 'History' && <>
             <TextField label="Search student, registration, semester, room" size="small" value={search} onChange={(event) => setSearch(event.target.value)} sx={{ mb: 2, minWidth: 320 }} />
-            <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Student', 'Room / bed', 'Semester', 'Arrival date', 'Checked in', 'Checked out', 'Payment'].map((value) => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
-                <TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell><TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)} {row.bed_number && String(row.bed_number).trim() !== '0' ? `· Bed ${row.bed_number}` : ''}<br /><Typography variant="caption">{row.campus}</Typography></TableCell><TableCell>{row.semester}</TableCell><TableCell>{row.arrival_date ? new Date(row.arrival_date).toLocaleDateString() : '—'}</TableCell><TableCell>{row.checked_in_at ? new Date(row.checked_in_at).toLocaleString() : '—'}</TableCell><TableCell>{row.checked_out_at ? new Date(row.checked_out_at).toLocaleString() : '—'}</TableCell><TableCell>{Number(row.confirmed_payments) ? 'Confirmed' : 'No confirmed payment'}</TableCell></TableRow>)}
-                    {!rows.length && <TableRow><TableCell colSpan={7} align="center">No completed stays found</TableCell></TableRow>}</TableBody></Table></TableContainer>
+            <Alert severity="info" sx={{ mb: 2 }} icon={false}>
+                Medical and dietary information is confidential. Students shared it with their consent so staff can look after them. Do not copy or share it.
+            </Alert>
+            <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Student', 'Room / bed', 'Semester', 'Arrival', 'Checked in', 'Checked out', 'Payment', 'Medical', 'Diet'].map((value) => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>
+                <TableBody>{rows.map((row) => <TableRow key={row.id}>
+                    <TableCell>{row.full_name}<br /><Typography variant="caption">{row.reg_no}</Typography></TableCell>
+                    <TableCell>{formatHostelName(row.hostel)} {formatRoomNumber(row.room_number)} {row.bed_number && String(row.bed_number).trim() !== '0' ? `· Bed ${row.bed_number}` : ''}<br /><Typography variant="caption">{row.campus}</Typography></TableCell>
+                    <TableCell>{row.semester}</TableCell>
+                    <TableCell>{row.arrival_date ? new Date(row.arrival_date).toLocaleDateString() : '—'}</TableCell>
+                    <TableCell>{row.checked_in_at ? new Date(row.checked_in_at).toLocaleString() : '—'}</TableCell>
+                    <TableCell>{row.checked_out_at ? new Date(row.checked_out_at).toLocaleString() : '—'}</TableCell>
+                    <TableCell>{Number(row.confirmed_payments) ? 'Confirmed' : 'No confirmed payment'}</TableCell>
+                    <TableCell><Typography variant="body2" sx={{ maxWidth: 180, whiteSpace: 'pre-wrap' }}>{row.medical_conditions || '—'}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{ maxWidth: 150, whiteSpace: 'pre-wrap' }}>{row.dietary_restrictions || '—'}</Typography></TableCell>
+                </TableRow>)}
+                    {!rows.length && <TableRow><TableCell colSpan={9} align="center">No completed stays found</TableCell></TableRow>}</TableBody></Table></TableContainer>
         </>}
 
         {activeTab === 'Checkout Requests' && <TableContainer component={Paper}><Table size="small"><TableHead><TableRow>{['Requested', 'Student', 'Room / bed', 'Semester', 'Reason', 'Status', 'Decision'].map((value) => <TableCell key={value}>{value}</TableCell>)}</TableRow></TableHead>

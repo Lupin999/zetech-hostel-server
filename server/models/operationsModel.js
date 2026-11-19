@@ -31,9 +31,11 @@ const listStays = () => pool.query(
 const listStayHistory = (search = '') => pool.query(
     `SELECT b.id, b.semester, b.arrival_date, b.departure_date, b.checked_in_at, b.checked_out_at,
         r.room_number, r.hostel, r.campus, bd.bed_number, u.full_name, u.reg_no,
+        hp.medical_conditions, hp.dietary_restrictions,
         (SELECT COUNT(*) FROM payments p WHERE p.booking_id = b.id AND p.status = 'confirmed') AS confirmed_payments
      FROM bookings b JOIN users u ON u.id = b.user_id JOIN rooms r ON r.id = b.room_id
      LEFT JOIN beds bd ON bd.id = b.bed_id
+     LEFT JOIN health_profile hp ON hp.user_id = b.user_id
      WHERE b.status = 'completed' AND b.checked_out_at IS NOT NULL
        AND (? = '' OR u.full_name LIKE ? OR u.reg_no LIKE ? OR b.semester LIKE ? OR r.room_number LIKE ?)
      ORDER BY b.checked_out_at DESC, b.id DESC LIMIT 1000`,

@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     AppBar, Toolbar, Typography, Button, Box, Container, IconButton, Badge,
     Drawer, List, ListItem, ListItemButton, ListItemText, Divider,
-    useMediaQuery, useTheme
+    useMediaQuery, useTheme, Snackbar, Paper
 } from '@mui/material';
-import { Menu as MenuIcon, LightMode, DarkMode, Notifications } from '@mui/icons-material';
+import { Menu as MenuIcon, LightMode, DarkMode, Notifications, BookOnline } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../context/ThemeContext';
@@ -37,10 +37,30 @@ export default function Layout({ children }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [notifications, setNotifications] = useState([]);
+    // Track popup toasts for new booking notifications (admin only)
+    const [bookingPopup, setBookingPopup] = useState(null); // { message, id }
+    const seenIdsRef = useRef(null); // null = first load, don't pop on initial fetch
 
     const fetchNotifications = useCallback(() => {
-        api.get('/notifications').then(r => setNotifications(r.data)).catch(() => {});
-    }, []);
+        api.get('/notifications').then(r => {
+            const data = r.data;
+            setNotifications(data);
+
+            // Admin only — show a popup for new unread booking notifications
+            if (user?.role === 'admin' || user?.role === 'warden') {
+                const newBookings = data.filter(n =>
+                    !n.is_read &&
+                    n.type === 'booking' &&
+                    (seenIdsRef.current === null || !seenIdsRef.current.has(n.id))
+                );
+                if (seenIdsRef.current !== null && newBookings.length > 0) {
+                    // Show the most recent one
+                    setBookingPopup({ message: newBookings[0].message, id: newBookings[0].id });
+                }
+                seenIdsRef.current = new Set(data.map(n => n.id));
+            }
+        }).catch(() => {});
+    }, [user?.role]);
 
     useEffect(() => { fetchNotifications(); const t = setInterval(fetchNotifications, 30000); return () => clearInterval(t); }, [fetchNotifications]);
 
@@ -126,6 +146,33 @@ export default function Layout({ children }) {
             <Container sx={{ mt: { xs: 2, md: 4 }, mb: { xs: 2, md: 4 }, px: { xs: 2, md: 3 }, flex: 1 }}>{children}</Container>
 
             <InstallPrompt />
+
+            {/* New booking popup — admin/warden only, 5 second auto-dismiss */}
+            <Snackbar
+                open={!!bookingPopup}
+                autoHideDuration={5000}
+                onClose={() => setBookingPopup(null)}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                sx={{ top: { xs: 70, md: 72 } }}
+            >
+                <Paper elevation={6} sx={{
+                    p: 2, minWidth: 300, maxWidth: 400,
+                    bgcolor: '#1a237e', color: '#fff',
+                    borderLeft: '4px solid #FFD700',
+                    borderRadius: 2,
+                    display: 'flex', alignItems: 'flex-start', gap: 1.5,
+                }}>
+                    <BookOnline sx={{ color: '#FFD700', mt: 0.3, flexShrink: 0 }} />
+                    <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#FFD700', mb: 0.3 }}>
+                            New Booking
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', lineHeight: 1.4 }}>
+                            {bookingPopup?.message}
+                        </Typography>
+                    </Box>
+                </Paper>
+            </Snackbar>
 
             <Box component="footer" sx={{ py: 3, textAlign: 'center', bgcolor: mode === 'dark' ? 'rgba(17,24,39,0.9)' : '#1a237e', color: 'rgba(255,255,255,0.7)', mt: 'auto' }}>
                 <Typography variant="body2">
