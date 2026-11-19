@@ -19,8 +19,12 @@ const markAllRead = async (userId) => {
     await NotificationModel.markAllRead(userId);
 };
 
+const markOneRead = async (id, userId) => {
+    await NotificationModel.markOneRead(id, userId);
+};
+
 const sendMessage = async (userId, message) => {
     await NotificationModel.createNotification(userId, message, 'message');
 };
 
-module.exports = { sendNotification, sendToRole, getNotifications, markAllRead, sendMessage };
+module.exports = { sendNotification, sendToRole, getNotifications, markAllRead, markOneRead, sendMessage };

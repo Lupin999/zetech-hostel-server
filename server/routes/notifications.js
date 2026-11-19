@@ -37,4 +37,14 @@ router.patch('/read', authenticateToken, async (req, res) => {
     }
 });
 
+router.patch('/:id/read', authenticateToken, async (req, res) => {
+    try {
+        await notificationService.markOneRead(req.params.id, req.user.id);
+        res.json({ message: 'Marked as read' });
+    } catch (error) {
+        logger.error('MARK ONE READ ERROR', { message: error.message });
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router;

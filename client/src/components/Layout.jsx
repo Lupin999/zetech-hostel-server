@@ -71,6 +71,10 @@ export default function Layout({ children }) {
         setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     };
 
+    const markOneRead = (id) => {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    };
+
     const handleLogout = () => { logout(); navigate('/login'); };
     const links = user?.role === 'admin' ? adminLinks : studentLinks;
     const navTo = (path) => { navigate(path); setDrawerOpen(false); };
@@ -141,7 +145,7 @@ export default function Layout({ children }) {
             </Drawer>
 
             {/* Notifications Drawer */}
-            <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} notifications={notifications} unreadCount={unreadCount} onMarkAllRead={markAllRead} />
+            <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} notifications={notifications} unreadCount={unreadCount} onMarkAllRead={markAllRead} onMarkOneRead={markOneRead} />
 
             <Container sx={{ mt: { xs: 2, md: 4 }, mb: { xs: 2, md: 4 }, px: { xs: 2, md: 3 }, flex: 1 }}>{children}</Container>
 

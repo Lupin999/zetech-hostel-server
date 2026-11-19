@@ -1,7 +1,7 @@
 import { Drawer, Box, Typography, Button, Divider, List } from '@mui/material';
 import NotificationItem from './NotificationItem';
 
-export default function NotificationDrawer({ open, onClose, notifications, unreadCount, onMarkAllRead }) {
+export default function NotificationDrawer({ open, onClose, notifications, unreadCount, onMarkAllRead, onMarkOneRead }) {
     return (
         <Drawer anchor="right" open={open} onClose={onClose}>
             <Box sx={{ width: { xs: 300, md: 360 }, pt: 2 }}>
@@ -17,7 +17,7 @@ export default function NotificationDrawer({ open, onClose, notifications, unrea
                 ) : (
                     <List disablePadding>
                         {notifications.map(n => (
-                            <NotificationItem key={n.id} notification={n} />
+                            <NotificationItem key={n.id} notification={n} onRead={onMarkOneRead} />
                         ))}
                     </List>
                 )}

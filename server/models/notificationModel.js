@@ -12,4 +12,8 @@ const markAllRead = (userId) => {
     return pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = ?', [userId]);
 };
 
-module.exports = { createNotification, getUserNotifications, markAllRead };
+const markOneRead = (id, userId) => {
+    return pool.query('UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?', [id, userId]);
+};
+
+module.exports = { createNotification, getUserNotifications, markAllRead, markOneRead };
