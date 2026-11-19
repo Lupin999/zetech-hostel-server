@@ -80,10 +80,10 @@ const checkIn = async (actorId, bookingId, paymentOverrideReason = null, accessT
     if (paymentOverrideReason !== null && (!reason || reason.length < 5 || reason.length > 500)) {
         return { error: 'Provide a reason between 5 and 500 characters for temporary access', status: 400 };
     }
-    if (!['temporary', 'mercy'].includes(accessType)) {
-        return { error: 'Access type must be temporary or mercy', status: 400 };
+    if (!['temporary'].includes(accessType)) {
+        return { error: 'Access type must be temporary', status: 400 };
     }
-    const [result] = await model.checkIn(bookingId, Boolean(reason), accessType, reason);
+    const [result] = await model.checkIn(bookingId, Boolean(reason), 'temporary', reason);
     if (!result.affectedRows) {
         return {
             error: reason
@@ -92,14 +92,25 @@ const checkIn = async (actorId, bookingId, paymentOverrideReason = null, accessT
             status: 409,
         };
     }
+
+    // Auto-suspend so the student sees a payment warning in their portal
+    if (reason) {
+        await model.suspendBooking(bookingId, true,
+            `Temporary access granted — payment pending. Reason: ${reason}`
+        );
+        await notificationService.sendNotification(
+            await model.getUserIdForBooking(bookingId),
+            `⚠️ You have been granted temporary room access but your booking is suspended until payment is cleared. Reason: ${reason}`,
+            'booking'
+        );
+    }
+
     await audit(
         actorId,
-        reason
-            ? accessType === 'mercy' ? 'stay.checked_in_with_mercy' : 'stay.checked_in_with_payment_override'
-            : 'stay.checked_in',
+        reason ? 'stay.checked_in_with_payment_override' : 'stay.checked_in',
         'booking',
         bookingId,
-        reason ? { payment_override: true, access_type: accessType, reason, payment_remains_due: true } : undefined
+        reason ? { payment_override: true, access_type: 'temporary', reason, payment_remains_due: true } : undefined
     );
     return { message: 'Resident checked in' };
 };

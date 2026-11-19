@@ -34,7 +34,7 @@ const listStays = async () => {
     const accessCols = await hasAccessCols();
     return pool.query(
         `SELECT b.id, b.user_id, b.room_id, b.semester, b.arrival_date, b.departure_date,
-            b.checked_in_at, b.checked_out_at,
+            b.checked_in_at, b.checked_out_at, b.suspended, b.suspend_reason,
             ${accessCols ? 'b.check_in_access_type, b.check_in_note,' : 'NULL AS check_in_access_type, NULL AS check_in_note,'}
             r.room_number, r.hostel, bd.bed_number,
             u.full_name, u.reg_no,
@@ -500,6 +500,16 @@ const closeExpiredPeriods = async () => {
     return closed;
 };
 
+const suspendBooking = (bookingId, suspended, reason) => pool.query(
+    'UPDATE bookings SET suspended = ?, suspend_reason = ? WHERE id = ?',
+    [suspended, suspended ? (reason || null) : null, bookingId]
+);
+
+const getUserIdForBooking = async (bookingId) => {
+    const [rows] = await pool.query('SELECT user_id FROM bookings WHERE id = ?', [bookingId]);
+    return rows[0]?.user_id || null;
+};
+
 module.exports = {
     listStudents, updateRole, listStays, listStayHistory, checkIn, checkOut, getStayBed, getStudentCurrentStay, createCheckoutRequest, listCheckoutRequests, decideCheckoutRequest, updateStayDates, updateBedStatus, getStudentRoom,
     createRequest, listRequests, updateRequest, createVisitor, listVisitors,
@@ -507,4 +517,5 @@ module.exports = {
     getPaymentReport, getBalances, getOverview, writeAuditLog, listAuditLogs,
     getUserRoleDetails,
     listPeriods, createPeriod, getPeriodBookingAccess, activateDuePeriods, closeExpiredPeriods,
+    suspendBooking, getUserIdForBooking,
 };

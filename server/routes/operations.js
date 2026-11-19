@@ -53,11 +53,9 @@ router.put('/stays/:id/temporary-access', authenticateToken, allowRoles('admin')
     param('id').custom(validId),
     body('reason').trim().isLength({ min: 5, max: 500 })
         .withMessage('Provide a reason between 5 and 500 characters for temporary access'),
-    body('access_type').optional().isIn(['temporary', 'mercy'])
-        .withMessage('Access type must be temporary or mercy'),
     (req, res, next) => { if (handleErrors(req, res)) return; next(); },
     run((req) => operationsService.checkIn(
-        req.user.id, req.params.id, req.body.reason, req.body.access_type || 'temporary'
+        req.user.id, req.params.id, req.body.reason, 'temporary'
     )));
 router.put('/stays/:id/check-out', authenticateToken, allowRoles('admin'), (req, res, next) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid booking ID' });

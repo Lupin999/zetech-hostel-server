@@ -10,7 +10,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { formatHostelName, formatPaymentMethod, formatRoomNumber } from '../utils/helpers';
+import { formatHostelName, formatPaymentMethod, formatRoomNumber, isSuspended } from '../utils/helpers';
 
 const adminTabs = ['Stays', 'History', 'Checkout Requests', 'Periods', 'Users', 'Requests', 'Inspections', 'Payments', 'Reports', 'Audit'];
 
@@ -382,9 +382,9 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
         } catch (error) { toast.error(error.response?.data?.error || 'Could not decide checkout request'); }
     };
 
-    const allowPaymentExceptionCheckIn = (row, accessType) => {
+    const allowPaymentExceptionCheckIn = (row) => {
         setAccessReason('');
-        setAccessDialog({ row, accessType });
+        setAccessDialog({ row, accessType: 'temporary' });
     };
 
     const submitAccessDialog = async () => {
@@ -401,11 +401,30 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
             setAccessDialog(null);
             setAccessReason('');
             await load();
-            toast.success(`${accessType === 'mercy' ? 'Mercy' : 'Temporary'} access granted; payment remains due`);
+            const extra = ' — booking auto-suspended, student will see a payment warning';
+            toast.success(`Temporary access granted; payment remains due${extra}`);
         } catch (error) {
             toast.error(error.response?.data?.error || 'Could not allow access');
         } finally {
             setAccessSubmitting(false);
+        }
+    };
+
+    const toggleStaySuspension = async (row, suspend) => {
+        const reason = suspend
+            ? window.prompt(`Suspend ${row.full_name}'s access? Enter reason (5–500 chars):`)
+            : null;
+        if (suspend && reason === null) return;
+        if (suspend && reason.trim().length < 5) { toast.error('Enter a reason of at least 5 characters'); return; }
+        try {
+            await api.put(`/bookings/${row.id}/suspend`, {
+                suspended: suspend,
+                reason: suspend ? reason.trim() : undefined,
+            });
+            await load();
+            toast.success(suspend ? `${row.full_name}'s access suspended` : `${row.full_name}'s access reinstated`);
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Could not update suspension');
         }
     };
 
@@ -458,21 +477,40 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
                     {row.checked_out_at ? 'Checked out' : row.checked_in_at ? (
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                             <Typography variant="body2">{`In since ${new Date(row.checked_in_at).toLocaleString()}`}</Typography>
-                            {row.check_in_access_type === 'temporary' && (
+                            {(row.check_in_access_type === 'temporary' || row.check_in_access_type === 'mercy') && (
                                 <Chip size="small" label="⚠️ Temporary access" color="warning" variant="outlined" />
                             )}
-                            {row.check_in_access_type === 'mercy' && (
-                                <Chip size="small" label="💙 Mercy access" color="info" variant="outlined" />
+                            {isSuspended(row.suspended) && (
+                                <Chip size="small" label="🚫 Suspended" color="error" />
                             )}
                             {row.check_in_note && (
                                 <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', maxWidth: 200 }}>
                                     Reason: {row.check_in_note}
                                 </Typography>
                             )}
+                            {isSuspended(row.suspended) && row.suspend_reason && (
+                                <Typography variant="caption" sx={{ color: 'error.main', fontStyle: 'italic', maxWidth: 200 }}>
+                                    Suspended: {row.suspend_reason}
+                                </Typography>
+                            )}
                         </Box>
                     ) : 'Not checked in'}
                 </TableCell>
-                <TableCell sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>{!row.checked_out_at && <Button size="small" variant="outlined" sx={{ color: '#e2e8f0', borderColor: '#94a3b8', '&:hover': { borderColor: '#e2e8f0', bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={() => setDateDialog({ id: row.id, arrival_date: row.arrival_date?.slice(0, 10) || '', departure_date: row.departure_date?.slice(0, 10) || '' })}>Dates</Button>}{outstanding > 0 && <Button size="small" variant="outlined" sx={{ color: '#86efac', borderColor: '#4ade80', '&:hover': { borderColor: '#86efac', bgcolor: 'rgba(74,222,128,0.08)' } }} onClick={() => openVerifiedPaymentDialog(row.id, outstanding)}>Record verified payment</Button>}{!row.checked_in_at && !row.checked_out_at && <>{outstanding > 0 && <Button size="small" variant="outlined" sx={{ color: '#93c5fd', borderColor: '#60a5fa', '&:hover': { borderColor: '#93c5fd', bgcolor: 'rgba(96,165,250,0.08)' } }} onClick={() => allowPaymentExceptionCheckIn(row, 'mercy')}>Grant Mercy</Button>}{!Number(row.confirmed_payments) && <Button size="small" variant="outlined" color="warning" onClick={() => allowPaymentExceptionCheckIn(row, 'temporary')}>Temporary access</Button>}<Button size="small" variant="contained" color="success" disabled={!Number(row.confirmed_payments)} onClick={() => changeStayStatus(row.id, 'check-in')}>Check in</Button></>}{row.checked_in_at && !row.checked_out_at && <Button size="small" variant="contained" color="warning" onClick={() => changeStayStatus(row.id, 'check-out')}>Check out</Button>}</TableCell></TableRow>;
+                <TableCell sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                    {!row.checked_out_at && <Button size="small" variant="outlined" sx={{ color: '#e2e8f0', borderColor: '#94a3b8', '&:hover': { borderColor: '#e2e8f0', bgcolor: 'rgba(255,255,255,0.08)' } }} onClick={() => setDateDialog({ id: row.id, arrival_date: row.arrival_date?.slice(0, 10) || '', departure_date: row.departure_date?.slice(0, 10) || '' })}>Dates</Button>}
+                    {outstanding > 0 && <Button size="small" variant="outlined" sx={{ color: '#86efac', borderColor: '#4ade80', '&:hover': { borderColor: '#86efac', bgcolor: 'rgba(74,222,128,0.08)' } }} onClick={() => openVerifiedPaymentDialog(row.id, outstanding)}>Record verified payment</Button>}
+                    {!row.checked_in_at && !row.checked_out_at && <>
+                        {!Number(row.confirmed_payments) && <Button size="small" variant="outlined" color="warning" onClick={() => allowPaymentExceptionCheckIn(row)}>Temporary access</Button>}
+                        <Button size="small" variant="contained" color="success" disabled={!Number(row.confirmed_payments)} onClick={() => changeStayStatus(row.id, 'check-in')}>Check in</Button>
+                    </>}
+                    {/* Suspend / unsuspend for temporary-access students who are checked in */}
+                    {row.checked_in_at && !row.checked_out_at && row.check_in_access_type === 'temporary' && (
+                        isSuspended(row.suspended)
+                            ? <Button size="small" variant="outlined" color="success" onClick={() => toggleStaySuspension(row, false)}>Reinstate access</Button>
+                            : <Button size="small" variant="contained" color="error" onClick={() => toggleStaySuspension(row, true)}>Suspend access</Button>
+                    )}
+                    {row.checked_in_at && !row.checked_out_at && <Button size="small" variant="contained" color="warning" onClick={() => changeStayStatus(row.id, 'check-out')}>Check out</Button>}
+                </TableCell></TableRow>;
             })}
                 {!rows.length && <TableRow><TableCell colSpan={7} align="center">No approved stays</TableCell></TableRow>}</TableBody></Table></TableContainer>}
 
@@ -651,20 +689,19 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
 
         {/* Temporary / Mercy Access Dialog */}
         <Dialog open={!!accessDialog} onClose={() => !accessSubmitting && setAccessDialog(null)} maxWidth="sm" fullWidth>
-            <DialogTitle sx={{ bgcolor: accessDialog?.accessType === 'mercy' ? '#1e3a5f' : '#7c3f00', color: '#fff' }}>
-                {accessDialog?.accessType === 'mercy' ? '💙 Grant Mercy Access' : '⚠️ Grant Temporary Access'}
+            <DialogTitle sx={{ bgcolor: '#7c3f00', color: '#fff' }}>
+                ⚠️ Grant Temporary Access
             </DialogTitle>
             <DialogContent sx={{ pt: 2 }}>
-                <Alert severity={accessDialog?.accessType === 'mercy' ? 'info' : 'warning'} sx={{ mb: 2 }}>
+                <Alert severity="warning" sx={{ mb: 2 }}>
                     <strong>{accessDialog?.row?.full_name}</strong> ({accessDialog?.row?.reg_no}) will be checked in
-                    without full payment. The outstanding balance remains due and will still appear in reports.
+                    without full payment. The booking will be automatically <strong>suspended</strong> so the student sees
+                    a payment warning in their portal. The outstanding balance remains due.
                 </Alert>
                 <TextField
                     label="Reason *"
                     multiline rows={3} fullWidth autoFocus
-                    placeholder={accessDialog?.accessType === 'mercy'
-                        ? 'e.g. Partial payment confirmed, student awaiting bursary disbursement on 20 Nov 2026'
-                        : 'e.g. Student paid in cash at the office, receipt pending capture by accounts'}
+                    placeholder="e.g. Student paid in cash at the office, receipt pending capture by accounts"
                     value={accessReason}
                     onChange={e => setAccessReason(e.target.value)}
                     helperText={`${accessReason.trim().length}/500 characters (minimum 5)`}
@@ -675,11 +712,11 @@ export default function OperationsDashboard({ initialTab = 'Stays', hideNavigati
                 <Button onClick={() => setAccessDialog(null)} disabled={accessSubmitting}>Cancel</Button>
                 <Button
                     variant="contained"
-                    color={accessDialog?.accessType === 'mercy' ? 'info' : 'warning'}
+                    color="warning"
                     disabled={accessSubmitting || accessReason.trim().length < 5}
                     onClick={submitAccessDialog}
                 >
-                    {accessSubmitting ? 'Saving…' : `Grant ${accessDialog?.accessType === 'mercy' ? 'Mercy' : 'Temporary'} access`}
+                    {accessSubmitting ? 'Saving…' : 'Grant Temporary Access'}
                 </Button>
             </DialogActions>
         </Dialog>
