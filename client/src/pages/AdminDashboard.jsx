@@ -226,7 +226,7 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
         if (!r.isConfirmed) return;
         setBulkDeleting(true);
         try {
-            const res = await api.delete('/bookings/bulk', { data: { ids: [...selected] } });
+            const res = await api.delete('/bookings/bulk', { data: { ids: [...selected].map(Number) } });
             setSelected(new Set());
             fetchData();
             toast.success(res.data.message);
@@ -237,16 +237,16 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
 
     // Which bookings are eligible for deletion (completed/rejected/cancelled)
     const deletable = sortedFiltered.filter(b => ['completed', 'rejected', 'cancelled'].includes(b.status));
-    const allDeletableSelected = deletable.length > 0 && deletable.every(b => selected.has(b.id));
+    const allDeletableSelected = deletable.length > 0 && deletable.every(b => selected.has(Number(b.id)));
     const toggleSelectAll = () => {
         if (allDeletableSelected) {
-            setSelected(prev => { const n = new Set(prev); deletable.forEach(b => n.delete(b.id)); return n; });
+            setSelected(prev => { const n = new Set(prev); deletable.forEach(b => n.delete(Number(b.id))); return n; });
         } else {
-            setSelected(prev => { const n = new Set(prev); deletable.forEach(b => n.add(b.id)); return n; });
+            setSelected(prev => { const n = new Set(prev); deletable.forEach(b => n.add(Number(b.id))); return n; });
         }
     };
     const toggleSelect = (id) => setSelected(prev => {
-        const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+        const n = new Set(prev); const nid = Number(id); n.has(nid) ? n.delete(nid) : n.add(nid); return n;
     });
 
     const handleUpdateProfile = async () => {
@@ -401,7 +401,7 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
                             const hasPayment = b.payment_status && String(b.payment_status).trim() !== '0';
                             const suspended = isSuspended(b.suspended);
                             const isDeletable = ['completed', 'rejected', 'cancelled'].includes(b.status);
-                            const isSelected = selected.has(b.id);
+                            const isSelected = selected.has(Number(b.id));
                             return (
                                 <TableRow key={b.id} selected={isSelected} sx={{
                                     bgcolor: isSelected
@@ -411,7 +411,7 @@ export default function AdminDashboard({ initialTab = 'bookings', hideSectionNav
                                         : undefined
                                 }}>
                                     <TableCell padding="checkbox">
-                                        <Checkbox size="small" checked={isSelected} disabled={!isDeletable} onChange={() => toggleSelect(b.id)} />
+                                        <Checkbox size="small" checked={isSelected} disabled={!isDeletable} onChange={() => toggleSelect(Number(b.id))} />
                                     </TableCell>
                                     {/* Student — name + reg + hostel stacked */}
                                     <TableCell>

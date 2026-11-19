@@ -1,9 +1,23 @@
 const pool = require('../config/db');
 
-const getActiveBooking = (userId) => {
+// Cache whether migration v13 columns exist (same check as operationsModel)
+let _hasV13Cols = null;
+const hasV13Cols = async () => {
+    if (_hasV13Cols !== null) return _hasV13Cols;
+    const [rows] = await pool.query(
+        `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookings'
+         AND COLUMN_NAME = 'check_in_access_type'`
+    );
+    _hasV13Cols = rows[0].cnt > 0;
+    return _hasV13Cols;
+};
+
+const getActiveBooking = async (userId) => {
+    const v13 = await hasV13Cols();
     return pool.query(
-        `SELECT b.*, r.room_number, r.hostel, r.price, bd.bed_number, bd.position,
-         b.check_in_access_type, b.check_in_note
+        `SELECT b.*, r.room_number, r.hostel, r.price, bd.bed_number, bd.position
+         ${v13 ? ', b.check_in_access_type, b.check_in_note' : ', NULL AS check_in_access_type, NULL AS check_in_note'}
          FROM bookings b JOIN rooms r ON b.room_id = r.id
          LEFT JOIN beds bd ON b.bed_id = bd.id
          WHERE b.user_id = ? AND b.status IN ('pending','approved')
